@@ -1,0 +1,3 @@
+[build]
+  publish = "build/web"
+  command = "flutter build web --release --dart-define=STRIPE_BACKEND_URL=$STRIPE_BACKEND_URL"
