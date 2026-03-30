@@ -3,6 +3,7 @@ import 'package:ewallet/globals/custom_home_Item.dart';
 import 'package:ewallet/globals/custom_list.dart';
 import 'package:ewallet/globals/glass_container.dart';
 import 'package:ewallet/utils/colors.dart';
+import 'package:ewallet/utils/money_formatter.dart';
 import 'package:ewallet/views/activityView/activity_view.dart';
 import 'package:ewallet/views/profileSetUpView/profile_setup_view.dart';
 import 'package:ewallet/views/sendMoneyView/send_money_view.dart';
@@ -62,7 +63,7 @@ class Home extends StatelessWidget {
                                     Row(
                                       children: [
                                         Image.asset(
-                                          "assets/images/infinity_logo.png",
+                                          "assets/images/logo2.png",
                                           width: 42,
                                         ),
                                         const SizedBox(width: 8),
@@ -116,7 +117,7 @@ class Home extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  "\$ ${userData?["Balance"] ?? 0}",
+                                  "\$ ${MoneyFormatter.fixed2(userData?["Balance"] ?? 0)}",
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 34,
@@ -225,7 +226,8 @@ class Home extends StatelessWidget {
                                   data["Sender"]?.toString() ?? 'unknown'.tr;
 
                               return CustomList(
-                                price: "\$${data["amount"] ?? 0}",
+                                price:
+                                    "\$${MoneyFormatter.fixed2(data["amount"] ?? 0)}",
                                 subTitle: formatted,
                                 title: isOutgoing
                                     ? "${'wallet_id'.tr}: $receiverWalletId"

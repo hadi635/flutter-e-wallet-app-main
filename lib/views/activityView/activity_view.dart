@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ewallet/globals/custom_appbar.dart';
 import 'package:ewallet/globals/custom_list.dart';
 import 'package:ewallet/utils/colors.dart';
+import 'package:ewallet/utils/money_formatter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -46,7 +47,8 @@ class ActivityView extends StatelessWidget {
 
                       return isMe
                           ? CustomList(
-                              price: "\$${data['amount']}",
+                              price:
+                                  "\$${MoneyFormatter.fixed2(data['amount'] ?? 0)}",
                               subTitle: formatedTime,
                               title:
                                   "${'wallet_id'.tr}: ${data['Receiver Wallet ID'] ?? 'unknown'.tr}",

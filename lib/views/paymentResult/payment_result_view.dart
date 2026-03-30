@@ -1,17 +1,71 @@
 import 'package:ewallet/globals/custom_button.dart';
 import 'package:ewallet/globals/glass_container.dart';
+import 'package:ewallet/services/stripe_service.dart';
 import 'package:ewallet/utils/colors.dart';
 import 'package:ewallet/views/splash/splash_screen_view.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-class PaymentResultView extends StatelessWidget {
+class PaymentResultView extends StatefulWidget {
   final bool success;
 
   const PaymentResultView({super.key, required this.success});
 
   @override
+  State<PaymentResultView> createState() => _PaymentResultViewState();
+}
+
+class _PaymentResultViewState extends State<PaymentResultView> {
+  bool _processing = false;
+  bool _credited = false;
+  String _message = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _confirmFromSessionIfNeeded();
+  }
+
+  Future<void> _confirmFromSessionIfNeeded() async {
+    if (!widget.success) return;
+
+    final sessionId = Uri.base.queryParameters['session_id']?.trim() ?? '';
+    if (sessionId.isEmpty || !StripeService.hasBackend) {
+      return;
+    }
+
+    setState(() => _processing = true);
+    try {
+      final result = await StripeService().confirmTopUp(sessionId: sessionId);
+      setState(() {
+        _credited = result.credited;
+        _message = result.message;
+      });
+    } catch (e) {
+      setState(() {
+        _credited = false;
+        _message = e.toString().replaceFirst('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _processing = false);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isSuccess = widget.success;
+    final topMessage = _processing
+        ? 'please_wait'.tr
+        : (isSuccess
+            ? (_credited
+                ? 'wallet_credited_successfully'.tr
+                : (_message.isNotEmpty
+                    ? _message
+                    : 'payment_opened_return_confirm'.tr))
+            : 'topup_failed'.tr);
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(gradient: Appcolor.appGradient),
@@ -24,15 +78,15 @@ class PaymentResultView extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    success
+                    isSuccess
                         ? Icons.check_circle_outline_rounded
                         : Icons.cancel_outlined,
-                    color: success ? Appcolor.accent : Colors.redAccent,
+                    color: isSuccess ? Appcolor.accent : Colors.redAccent,
                     size: 66,
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    success ? 'topup_success'.tr : 'topup_failed'.tr,
+                    isSuccess ? 'topup_success'.tr : 'topup_failed'.tr,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,
@@ -42,9 +96,7 @@ class PaymentResultView extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    success
-                        ? 'payment_opened_return_confirm'.tr
-                        : 'topup_failed'.tr,
+                    topMessage,
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.white),
                   ),

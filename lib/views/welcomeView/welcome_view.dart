@@ -29,7 +29,7 @@ class WelcomeView extends StatelessWidget {
                   ),
                   child: Column(
                     children: [
-                      Image.asset('assets/images/infinity_logo.png', width: 90),
+                      Image.asset('assets/images/logo2.png', width: 90),
                       const SizedBox(height: 12),
                       Text(
                         'app_name'.tr,

@@ -1,5 +1,6 @@
 import 'package:ewallet/views/nav/nav_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:get/get.dart';
@@ -9,6 +10,7 @@ class LoginService {
     required BuildContext context,
     required String email,
     required String password,
+    bool rememberMe = true,
   }) async {
     //Loading Effect
     showDialog(
@@ -27,6 +29,12 @@ class LoginService {
           );
         });
     try {
+      if (kIsWeb) {
+        await FirebaseAuth.instance.setPersistence(
+          rememberMe ? Persistence.LOCAL : Persistence.SESSION,
+        );
+      }
+
       final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,

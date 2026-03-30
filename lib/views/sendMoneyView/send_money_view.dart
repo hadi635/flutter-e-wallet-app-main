@@ -5,6 +5,7 @@ import 'package:ewallet/globals/custom_field.dart';
 import 'package:ewallet/globals/glass_container.dart';
 import 'package:ewallet/services/wallet_service.dart';
 import 'package:ewallet/utils/colors.dart';
+import 'package:ewallet/utils/money_formatter.dart';
 import 'package:ewallet/views/successView/success_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -64,10 +65,10 @@ class _SendMoneyViewState extends State<SendMoneyView> {
   }
 
   Future<void> _transferMoney() async {
-    final amount = int.tryParse(amountController.text);
+    final amount = MoneyFormatter.parseAmount(amountController.text);
     final receiverWalletId = walletIdController.text.trim();
 
-    if (amount == null || amount <= 0) {
+    if (amount <= 0) {
       Get.snackbar('invalid_amount'.tr, 'enter_valid_amount'.tr);
       return;
     }
@@ -157,7 +158,9 @@ class _SendMoneyViewState extends State<SendMoneyView> {
                         CustomField(
                           title: 'enter_amount'.tr,
                           prefixIcon: Icons.attach_money_outlined,
-                          keybard: TextInputType.number,
+                          keybard: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                           controller: amountController,
                           focusColor: Appcolor.secondary,
                           borderColor: Appcolor.secondary,
@@ -172,7 +175,7 @@ class _SendMoneyViewState extends State<SendMoneyView> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '${'available_balance'.tr}: $availableBalance',
+                          '${'available_balance'.tr}: \$${MoneyFormatter.fixed2(availableBalance)}',
                           style: const TextStyle(
                             fontSize: 18,
                             color: Colors.white,

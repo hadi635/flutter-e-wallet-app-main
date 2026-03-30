@@ -123,12 +123,14 @@ async function findUserWalletTarget({ email, walletId }) {
 }
 
 function calculateTopupAmounts(grossAmount) {
-  const feeAmount = Math.round(
-    grossAmount * (topupFeePercentage / 100) + topupFixedFee,
+  const toMoney = (value) => Math.round(Number(value) * 100) / 100;
+  const normalizedGross = toMoney(grossAmount);
+  const feeAmount = toMoney(
+    normalizedGross * (topupFeePercentage / 100) + topupFixedFee,
   );
-  const netAmount = Math.max(0, grossAmount - feeAmount);
+  const netAmount = toMoney(Math.max(0, normalizedGross - feeAmount));
   return {
-    grossAmount,
+    grossAmount: normalizedGross,
     feeAmount,
     netAmount,
   };
@@ -144,12 +146,12 @@ async function creditWalletOnce({
 }) {
   if (
     !sessionId ||
-    !email ||
     !Number.isFinite(grossAmount) ||
     !Number.isFinite(feeAmount) ||
     !Number.isFinite(netAmount) ||
     grossAmount <= 0 ||
-    netAmount <= 0
+    netAmount <= 0 ||
+    (!email && !walletId)
   ) {
     throw new Error('Invalid top-up payload');
   }
@@ -175,6 +177,12 @@ async function creditWalletOnce({
     }
 
     const currentBalance = Number(userSnap.data()?.Balance || 0);
+    const receiverEmail = (
+      userSnap.data()?.Email ||
+      userDocId ||
+      email ||
+      ''
+    ).toString();
     const receiverName = (userSnap.data()?.['Full Name'] || email).toString();
     const receiverWalletId = (userSnap.data()?.WalletId || '').toString();
 
@@ -197,7 +205,7 @@ async function creditWalletOnce({
     });
 
     tx.set(topupRef, {
-      email,
+      email: receiverEmail,
       walletId: walletId || '',
       userDocId,
       userLookup: matchedBy,
@@ -215,7 +223,7 @@ async function creditWalletOnce({
     tx.set(historyRef, {
       Sender: 'Stripe',
       Receiver: receiverName,
-      'Receiver Email': email,
+      'Receiver Email': receiverEmail,
       'Sender Email': 'stripe@system',
       'Sender Wallet ID': 'STRIPE',
       'Receiver Wallet ID': receiverWalletId,
@@ -272,7 +280,7 @@ app.post(
         event.type === 'checkout.session.async_payment_succeeded'
       ) {
         const session = event.data.object;
-        const amount = Math.round(Number(session.amount_total || 0) / 100);
+        const amount = Number(session.amount_total || 0) / 100;
         const email =
           session.metadata?.email || session.customer_details?.email || '';
         const walletId = (session.metadata?.walletId || '').toString();
@@ -365,7 +373,7 @@ app.post('/confirm-topup', async (req, res) => {
     }
 
     const session = await stripe.checkout.sessions.retrieve(sessionId);
-    const amount = Math.round(Number(session.amount_total || 0) / 100);
+    const amount = Number(session.amount_total || 0) / 100;
     const email =
       session.metadata?.email || session.customer_details?.email || '';
     const walletId = (session.metadata?.walletId || '').toString();

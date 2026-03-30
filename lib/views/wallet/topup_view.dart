@@ -6,6 +6,7 @@ import 'package:ewallet/globals/custom_field.dart';
 import 'package:ewallet/globals/glass_container.dart';
 import 'package:ewallet/services/stripe_service.dart';
 import 'package:ewallet/utils/colors.dart';
+import 'package:ewallet/utils/money_formatter.dart';
 import 'package:ewallet/views/sendMoneyView/send_money_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +28,15 @@ class _TopUpViewState extends State<TopUpView> {
   final StripeService _stripeService = StripeService();
   bool _isProcessing = false;
   String? _pendingSessionId;
+
+  @override
+  void initState() {
+    super.initState();
+    final sessionId = Uri.base.queryParameters['session_id'];
+    if (sessionId != null && sessionId.trim().isNotEmpty) {
+      _pendingSessionId = sessionId.trim();
+    }
+  }
 
   String _generateWalletId() {
     final rand = Random();
@@ -129,14 +139,15 @@ class _TopUpViewState extends State<TopUpView> {
   }
 
   Future<void> _openStripePaymentLink() async {
-    final amount = int.tryParse(_amountController.text);
-    if (amount == null || amount <= 0) {
+    final amount = MoneyFormatter.parseAmount(_amountController.text);
+    if (amount <= 0) {
       Get.snackbar('invalid_amount'.tr, 'enter_valid_amount'.tr);
       return;
     }
 
     final user = FirebaseAuth.instance.currentUser;
-    if (user?.email == null) {
+    final email = user?.email;
+    if (email == null) {
       Get.snackbar('auth_error'.tr, 'please_login_again'.tr);
       return;
     }
@@ -151,16 +162,12 @@ class _TopUpViewState extends State<TopUpView> {
         return;
       }
 
-      final walletDoc = await FirebaseFirestore.instance
-          .collection('user')
-          .doc(user!.email)
-          .get();
-      final walletId = walletDoc.data()?['WalletId']?.toString();
+      final walletId = await _getOrCreateWalletId();
 
       final session = await _stripeService.createCheckoutSession(
         amount: amount,
         currency: 'usd',
-        email: user.email!,
+        email: email,
         walletId: walletId,
       );
       setState(() {
@@ -272,7 +279,7 @@ class _TopUpViewState extends State<TopUpView> {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            '\$$balance',
+                            '\$${MoneyFormatter.fixed2(balance)}',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 34,
@@ -332,7 +339,9 @@ class _TopUpViewState extends State<TopUpView> {
                     children: [
                       CustomField(
                         title: 'amount_to_add'.tr,
-                        keybard: TextInputType.number,
+                        keybard: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
                         controller: _amountController,
                         prefixIcon: Icons.attach_money_outlined,
                       ),

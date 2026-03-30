@@ -1,6 +1,7 @@
 import 'package:ewallet/globals/custom_button.dart';
 import 'package:ewallet/globals/glass_container.dart';
 import 'package:ewallet/utils/colors.dart';
+import 'package:ewallet/utils/money_formatter.dart';
 import 'package:ewallet/views/nav/nav_view.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -40,7 +41,7 @@ class SuccessView extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    "\$$amountSend USD",
+                    "\$${MoneyFormatter.fixed2(amountSend ?? 0)} USD",
                     style: const TextStyle(
                         fontSize: 30,
                         fontWeight: FontWeight.w800,

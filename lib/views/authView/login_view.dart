@@ -6,13 +6,46 @@ import 'package:ewallet/utils/colors.dart';
 import 'package:ewallet/views/authView/sign_up_view.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-class LoginView extends StatelessWidget {
-  LoginView({super.key});
+class LoginView extends StatefulWidget {
+  const LoginView({super.key});
 
+  @override
+  State<LoginView> createState() => _LoginViewState();
+}
+
+class _LoginViewState extends State<LoginView> {
   final emailCotroller = TextEditingController();
   final passwordController = TextEditingController();
   final LoginService service = LoginService();
+  bool _rememberMe = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberMe();
+  }
+
+  @override
+  void dispose() {
+    emailCotroller.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadRememberMe() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _rememberMe = prefs.getBool('remember_me') ?? true;
+    });
+  }
+
+  Future<void> _saveRememberMe(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('remember_me', value);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,11 +60,11 @@ class LoginView extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Image.asset("assets/images/infinity_logo.png", width: 72),
+                  Image.asset("assets/images/logo2.png", width: 72),
                   const SizedBox(height: 8),
                   Text(
                     "login".tr,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -48,7 +81,26 @@ class LoginView extends StatelessWidget {
                     secure: true,
                     controller: passwordController,
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _rememberMe,
+                        onChanged: (value) async {
+                          if (value == null) return;
+                          setState(() => _rememberMe = value);
+                          await _saveRememberMe(value);
+                        },
+                      ),
+                      Expanded(
+                        child: Text(
+                          'remember_me'.tr,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
                   CustomButton(
                     title: "login".tr,
                     ontap: () async {
@@ -61,6 +113,7 @@ class LoginView extends StatelessWidget {
                         context: context,
                         email: emailCotroller.text.trim(),
                         password: passwordController.text,
+                        rememberMe: _rememberMe,
                       );
                     },
                   ),

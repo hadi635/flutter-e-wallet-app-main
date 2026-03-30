@@ -60,7 +60,7 @@ class _SplashScreenViewState extends State<SplashScreenView> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset('assets/images/infinity_logo.png', width: 82),
+                Image.asset('assets/images/logo2.png', width: 82),
                 const SizedBox(height: 8),
                 Text(
                   "app_name".tr,

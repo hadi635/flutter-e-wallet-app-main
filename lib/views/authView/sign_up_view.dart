@@ -28,7 +28,7 @@ class SignUpView extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Image.asset("assets/images/infinity_logo.png", width: 72),
+                  Image.asset("assets/images/logo2.png", width: 72),
                   const SizedBox(height: 8),
                   Text(
                     "create_account".tr,

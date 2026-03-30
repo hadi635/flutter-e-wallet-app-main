@@ -5,19 +5,24 @@ class WalletService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  int _toIntBalance(dynamic value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
+  double _toMoney(double value) {
+    return (value * 100).roundToDouble() / 100;
+  }
+
+  double _toDoubleBalance(dynamic value) {
+    if (value is int) return value.toDouble();
+    if (value is double) return value;
+    if (value is num) return value.toDouble();
     if (value is String) {
       final parsed = num.tryParse(value.trim());
-      if (parsed != null) return parsed.toInt();
+      if (parsed != null) return parsed.toDouble();
     }
-    return 0;
+    return 0.0;
   }
 
   Future<Map<String, dynamic>> transfer({
     required String receiverWalletId,
-    required int amount,
+    required double amount,
   }) async {
     if (amount <= 0) {
       throw Exception("amount_must_be_greater");
@@ -64,15 +69,18 @@ class WalletService {
         throw Exception("cannot_transfer_self");
       }
 
-      final senderBalance = _toIntBalance(senderSnap.data()?["Balance"]);
-      final receiverBalance = _toIntBalance(receiverSnap.data()?["Balance"]);
+      final senderBalance = _toDoubleBalance(senderSnap.data()?["Balance"]);
+      final receiverBalance = _toDoubleBalance(receiverSnap.data()?["Balance"]);
 
       if (senderBalance < amount) {
         throw Exception("insufficient_balance");
       }
 
-      transaction.update(senderRef, {"Balance": senderBalance - amount});
-      transaction.update(receiverRef, {"Balance": receiverBalance + amount});
+      final newSenderBalance = _toMoney(senderBalance - amount);
+      final newReceiverBalance = _toMoney(receiverBalance + amount);
+
+      transaction.update(senderRef, {"Balance": newSenderBalance});
+      transaction.update(receiverRef, {"Balance": newReceiverBalance});
 
       transaction.set(_firestore.collection("history").doc(), {
         "Sender": senderSnap.data()?["Full Name"] ?? senderEmail,
@@ -95,7 +103,7 @@ class WalletService {
 
   Future<void> addBalance({
     required String email,
-    required int amount,
+    required double amount,
     required String source,
     String? reference,
   }) async {
@@ -112,9 +120,10 @@ class WalletService {
         throw Exception("User not found");
       }
 
-      final currentBalance = _toIntBalance(userSnap.data()?["Balance"]);
+      final currentBalance = _toDoubleBalance(userSnap.data()?["Balance"]);
+      final newBalance = _toMoney(currentBalance + amount);
 
-      transaction.update(userRef, {"Balance": currentBalance + amount});
+      transaction.update(userRef, {"Balance": newBalance});
       transaction.set(topUpRef, {
         "email": email,
         "amount": amount,

@@ -1,3 +1,4 @@
 {
-    "chatgpt.openOnStartup": true
+    "chatgpt.openOnStartup": true,
+    "cmake.sourceDirectory": "C:/Users/User/Downloads/flutter-e-wallet-app-main/flutter-e-wallet-app-main/linux"
 }

@@ -42,7 +42,7 @@ class SignUpService {
             .doc(email)
             .set({
           "Email": email,
-          "Balance": 0,
+          "Balance": 0.00,
           "WalletId": "",
         }, SetOptions(merge: true));
 

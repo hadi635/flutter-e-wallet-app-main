@@ -4,6 +4,7 @@ import 'package:ewallet/globals/custom_field.dart';
 import 'package:ewallet/globals/glass_container.dart';
 import 'package:ewallet/services/wallet_service.dart';
 import 'package:ewallet/utils/colors.dart';
+import 'package:ewallet/utils/money_formatter.dart';
 import 'package:ewallet/views/successView/success_view.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -36,8 +37,8 @@ class _AmountViewState extends State<AmountView> {
   }
 
   Future<void> _transferMoney() async {
-    final amount = int.tryParse(amountController.text);
-    if (amount == null || amount <= 0) {
+    final amount = MoneyFormatter.parseAmount(amountController.text);
+    if (amount <= 0) {
       Get.snackbar("Invalid Amount", "Enter a valid amount greater than 0");
       return;
     }
@@ -135,14 +136,16 @@ class _AmountViewState extends State<AmountView> {
                     CustomField(
                       title: "Enter Amount",
                       prefixIcon: Icons.attach_money_outlined,
-                      keybard: TextInputType.number,
+                      keybard: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       controller: amountController,
                       focusColor: Appcolor.secondary,
                       borderColor: Appcolor.secondary,
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      "Available Balance: $availableBalance",
+                      "Available Balance: \$${MoneyFormatter.fixed2(availableBalance)}",
                       style: const TextStyle(fontSize: 18, color: Colors.white),
                     )
                   ],

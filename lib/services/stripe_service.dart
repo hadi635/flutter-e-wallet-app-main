@@ -35,7 +35,7 @@ class StripeService {
   }
 
   Future<StripeCheckoutSessionResult> createCheckoutSession({
-    required int amount,
+    required double amount,
     required String currency,
     required String email,
     String? walletId,

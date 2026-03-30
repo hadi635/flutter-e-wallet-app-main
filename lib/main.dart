@@ -86,7 +86,7 @@ class MyApp extends StatelessWidget {
           ),
           GetPage(
             name: AppRoutes.login,
-            page: () => LoginView(),
+            page: () => const LoginView(),
           ),
           GetPage(
             name: AppRoutes.signup,
@@ -175,6 +175,13 @@ class MyApp extends StatelessWidget {
             primaryTextTheme: TextTheme(
               headlineSmall: TextStyle(color: Appcolor.darkText),
             )),
+        builder: (context, child) {
+          final isArabic = languageController.locale.languageCode == 'ar';
+          return Directionality(
+            textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
       ),
     );
   }
