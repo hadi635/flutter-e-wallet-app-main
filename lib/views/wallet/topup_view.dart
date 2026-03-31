@@ -32,9 +32,22 @@ class _TopUpViewState extends State<TopUpView> {
   @override
   void initState() {
     super.initState();
-    final sessionId = Uri.base.queryParameters['session_id'];
-    if (sessionId != null && sessionId.trim().isNotEmpty) {
-      _pendingSessionId = sessionId.trim();
+    _restorePendingSession();
+  }
+
+  Future<void> _restorePendingSession() async {
+    final sessionId = Uri.base.queryParameters['session_id']?.trim() ?? '';
+    if (sessionId.isNotEmpty) {
+      await StripeService.savePendingSessionId(sessionId);
+      if (mounted) {
+        setState(() => _pendingSessionId = sessionId);
+      }
+      return;
+    }
+
+    final storedSessionId = await StripeService.getPendingSessionId();
+    if (storedSessionId != null && mounted) {
+      setState(() => _pendingSessionId = storedSessionId);
     }
   }
 
@@ -157,7 +170,7 @@ class _TopUpViewState extends State<TopUpView> {
       if (!StripeService.hasBackend) {
         Get.snackbar(
           'error'.tr,
-          'Missing STRIPE_BACKEND_URL. Set --dart-define=STRIPE_BACKEND_URL=https://your-backend-url',
+          'Missing API_BASE_URL. Set --dart-define=API_BASE_URL=https://www.infinity-sharing.money/api',
         );
         return;
       }
@@ -173,6 +186,7 @@ class _TopUpViewState extends State<TopUpView> {
       setState(() {
         _pendingSessionId = session.sessionId;
       });
+      await StripeService.savePendingSessionId(session.sessionId);
       final uri = Uri.parse(session.checkoutUrl);
       final launched = await launchUrl(uri, webOnlyWindowName: '_self');
       if (!launched) {
@@ -207,10 +221,17 @@ class _TopUpViewState extends State<TopUpView> {
       }
 
       if (result.credited) {
+        await StripeService.clearPendingSessionId();
         setState(() {
           _pendingSessionId = null;
         });
         Get.snackbar('topup_success'.tr, 'wallet_credited_successfully'.tr);
+      } else if (result.message.toLowerCase().contains('already credited')) {
+        await StripeService.clearPendingSessionId();
+        setState(() {
+          _pendingSessionId = null;
+        });
+        Get.snackbar('topup_success'.tr, result.message);
       } else {
         Get.snackbar('topup_pending'.tr, result.message);
       }

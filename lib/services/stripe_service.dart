@@ -1,6 +1,8 @@
 import 'dart:convert';
 
+import 'package:ewallet/services/api_service.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class StripeCheckoutSessionResult {
   final String checkoutUrl;
@@ -25,13 +27,41 @@ class StripeTopUpResult {
 }
 
 class StripeService {
-  static const String backendBaseUrl =
-      String.fromEnvironment('STRIPE_BACKEND_URL', defaultValue: '');
+  static const String backendBaseUrl = ApiService.baseUrl;
+  static const String _pendingSessionIdKey = 'stripe_pending_session_id';
 
   static bool get hasBackend => backendBaseUrl.trim().isNotEmpty;
 
   static Future<void> init() async {
     return;
+  }
+
+  static Future<void> savePendingSessionId(String sessionId) async {
+    final value = sessionId.trim();
+    if (value.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_pendingSessionIdKey, value);
+  }
+
+  static Future<String?> getPendingSessionId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final sessionId = prefs.getString(_pendingSessionIdKey)?.trim();
+    if (sessionId == null || sessionId.isEmpty) {
+      return null;
+    }
+    return sessionId;
+  }
+
+  static Future<void> clearPendingSessionId() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_pendingSessionIdKey);
+  }
+
+  Map<String, dynamic> _decodeJsonResponse({
+    required String endpoint,
+    required http.Response response,
+  }) {
+    return ApiService.decodeJsonObject(endpoint: endpoint, response: response);
   }
 
   Future<StripeCheckoutSessionResult> createCheckoutSession({
@@ -42,11 +72,11 @@ class StripeService {
   }) async {
     if (!hasBackend) {
       throw Exception(
-        'Missing STRIPE_BACKEND_URL. Provide --dart-define=STRIPE_BACKEND_URL=http://localhost:4242',
+        'Missing API_BASE_URL. Provide --dart-define=API_BASE_URL=https://www.infinity-sharing.money/api',
       );
     }
 
-    final uri = Uri.parse('$backendBaseUrl/create-checkout-session');
+    final uri = ApiService.uri('/create-checkout-session');
     final response = await http.post(
       uri,
       headers: const {'Content-Type': 'application/json'},
@@ -64,7 +94,10 @@ class StripeService {
       );
     }
 
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final data = _decodeJsonResponse(
+      endpoint: 'create-checkout-session',
+      response: response,
+    );
     final checkoutUrl = data['checkoutUrl']?.toString() ?? '';
     final sessionId = data['sessionId']?.toString() ?? '';
 
@@ -83,11 +116,11 @@ class StripeService {
   }) async {
     if (!hasBackend) {
       throw Exception(
-        'Missing STRIPE_BACKEND_URL. Provide --dart-define=STRIPE_BACKEND_URL=http://localhost:4242',
+        'Missing API_BASE_URL. Provide --dart-define=API_BASE_URL=https://www.infinity-sharing.money/api',
       );
     }
 
-    final uri = Uri.parse('$backendBaseUrl/confirm-topup');
+    final uri = ApiService.uri('/confirm-topup');
     final response = await http.post(
       uri,
       headers: const {'Content-Type': 'application/json'},
@@ -102,11 +135,16 @@ class StripeService {
       );
     }
 
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final data = _decodeJsonResponse(
+      endpoint: 'confirm-topup',
+      response: response,
+    );
     return StripeTopUpResult(
       success: data['success'] == true,
       credited: data['credited'] == true,
-      message: data['message']?.toString() ?? 'Top-up result received',
+      message: data['message']?.toString() ??
+          data['error']?.toString() ??
+          'Top-up result received',
     );
   }
 }

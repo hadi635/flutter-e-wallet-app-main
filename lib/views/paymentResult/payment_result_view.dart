@@ -29,9 +29,18 @@ class _PaymentResultViewState extends State<PaymentResultView> {
   Future<void> _confirmFromSessionIfNeeded() async {
     if (!widget.success) return;
 
-    final sessionId = Uri.base.queryParameters['session_id']?.trim() ?? '';
-    if (sessionId.isEmpty || !StripeService.hasBackend) {
+    if (!StripeService.hasBackend) {
       return;
+    }
+
+    final querySessionId = Uri.base.queryParameters['session_id']?.trim() ?? '';
+    final sessionId = querySessionId.isNotEmpty
+        ? querySessionId
+        : (await StripeService.getPendingSessionId() ?? '');
+    if (sessionId.isEmpty) return;
+
+    if (querySessionId.isNotEmpty) {
+      await StripeService.savePendingSessionId(querySessionId);
     }
 
     setState(() => _processing = true);
@@ -41,6 +50,11 @@ class _PaymentResultViewState extends State<PaymentResultView> {
         _credited = result.credited;
         _message = result.message;
       });
+
+      if (result.credited ||
+          result.message.toLowerCase().contains('already credited')) {
+        await StripeService.clearPendingSessionId();
+      }
     } catch (e) {
       setState(() {
         _credited = false;
