@@ -42,7 +42,10 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-
+# Firebase secrets
+*-firebase-adminsdk-*.json
+**/*-firebase-adminsdk-*.json
+firebase-*-admindsk*.json
 
 .env
 

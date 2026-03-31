@@ -77,9 +77,14 @@ class StripeService {
     }
 
     final uri = ApiService.uri('/create-checkout-session');
+    final token = await ApiService.getIdToken();
+    final headers = {
+      ...ApiService.getAuthHeaders(),
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
     final response = await http.post(
       uri,
-      headers: const {'Content-Type': 'application/json'},
+      headers: headers,
       body: jsonEncode({
         'amount': amount,
         'currency': currency,
@@ -121,9 +126,14 @@ class StripeService {
     }
 
     final uri = ApiService.uri('/confirm-topup');
+    final token = await ApiService.getIdToken();
+    final headers = {
+      ...ApiService.getAuthHeaders(),
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
     final response = await http.post(
       uri,
-      headers: const {'Content-Type': 'application/json'},
+      headers: headers,
       body: jsonEncode({
         'sessionId': sessionId,
       }),

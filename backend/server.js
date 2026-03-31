@@ -1,11 +1,87 @@
 import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import Joi from 'joi';
 import admin from 'firebase-admin';
 import Stripe from 'stripe';
 
 const app = express();
-app.use(cors());
+
+// === SECURITY ADDITIONS (minimal) ===
+// Helmet for security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+    },
+  },
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 100, // 100 req/user
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/create-checkout-session', limiter);
+app.use('/confirm-topup', limiter);
+
+// Strict CORS
+app.use(cors({
+  origin: process.env.CLIENT_ORIGINS ? process.env.CLIENT_ORIGINS.split(',') : 'http://localhost:3000',
+  credentials: true,
+}));
+
+// Auth middleware (verify Firebase ID token)
+async function authMiddleware(req, res, next) {
+  try {
+    const idToken = req.headers.authorization?.replace('Bearer ', '') || req.headers['x-access-token'];
+    if (!idToken) return res.status(401).json({ error: 'No token' });
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    req.user = decodedToken;
+    next();
+  } catch (err) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}
+
+// Own wallet check middleware
+async function ownWalletCheck(req, res, next) {
+  try {
+    const { email, walletId } = req.body;
+    const userDoc = await db.collection('user').doc(req.user.email).get();
+    if (!userDoc.exists) return res.status(404).json({ error: 'User not found' });
+    const userData = userDoc.data();
+    if ((email && email.toLowerCase() !== req.user.email.toLowerCase()) ||
+        (walletId && walletId !== userData.WalletId)) {
+      return res.status(403).json({ error: 'Not your wallet' });
+    }
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'Check failed' });
+  }
+}
+
+// Joi schemas
+const createSessionSchema = Joi.object({
+  amount: Joi.number().positive().required(),
+  currency: Joi.string().valid('usd').default('usd'),
+  email: Joi.string().email().required(),
+  walletId: Joi.string().optional(),
+});
+
+const confirmSchema = Joi.object({
+  sessionId: Joi.string().required(),
+});
+
+// Original code (unchanged structure)
+app.use(express.json());
+app.use(express.raw({ type: 'application/json' })); // for webhook before json
 
 const port = Number(process.env.PORT || 4242);
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
@@ -249,75 +325,55 @@ async function creditWalletOnce({
   };
 }
 
-app.post(
-  '/stripe-webhook',
-  express.raw({ type: 'application/json' }),
-  async (req, res) => {
-    if (!stripeWebhookSecret) {
-      return res.status(500).send('Missing STRIPE_WEBHOOK_SECRET');
-    }
+// Webhook (no auth, raw body first)
+app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  if (!stripeWebhookSecret) {
+    return res.status(500).send('Missing STRIPE_WEBHOOK_SECRET');
+  }
 
-    const signature = req.headers['stripe-signature'];
-    if (!signature) {
-      return res.status(400).send('Missing stripe-signature header');
-    }
+  const signature = req.headers['stripe-signature'];
+  if (!signature) {
+    return res.status(400).send('Missing stripe-signature header');
+  }
 
-    let event;
-    try {
-      event = stripe.webhooks.constructEvent(
-        req.body,
-        signature,
-        stripeWebhookSecret,
-      );
-    } catch (err) {
-      console.error('Webhook signature verification failed:', err.message);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, signature, stripeWebhookSecret);
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
 
-    try {
-      if (
-        event.type === 'checkout.session.completed' ||
-        event.type === 'checkout.session.async_payment_succeeded'
-      ) {
-        const session = event.data.object;
-        const amount = Number(session.amount_total || 0) / 100;
-        const email =
-          session.metadata?.email || session.customer_details?.email || '';
-        const walletId = (session.metadata?.walletId || '').toString();
+  try {
+    if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
+      const session = event.data.object;
+      const amount = Number(session.amount_total || 0) / 100;
+      const email = session.metadata?.email || session.customer_details?.email || '';
+      const walletId = (session.metadata?.walletId || '').toString();
 
-        if (session.payment_status === 'paid' && (email || walletId)) {
-          const topup = calculateTopupAmounts(amount);
-          await creditWalletOnce({
-            sessionId: session.id,
-            email,
-            walletId,
-            ...topup,
-          });
-        }
+      if (session.payment_status === 'paid' && (email || walletId)) {
+        const topup = calculateTopupAmounts(amount);
+        await creditWalletOnce({
+          sessionId: session.id,
+          email,
+          walletId,
+          ...topup,
+        });
       }
-
-      return res.json({ received: true });
-    } catch (err) {
-      console.error('stripe-webhook processing error:', err);
-      return res.status(500).json({ error: 'Webhook processing failed' });
     }
-  },
-);
-
-app.use(express.json());
-
-app.get('/health', (_req, res) => {
-  res.json({
-    ok: true,
-    service: 'stripe-backend',
-    firebaseProjectId: firestoreProjectId,
-    feePercent: topupFeePercentage,
-    feeFixed: topupFixedFee,
-  });
+    return res.json({ received: true });
+  } catch (err) {
+    console.error('stripe-webhook processing error:', err);
+    return res.status(500).json({ error: 'Webhook processing failed' });
+  }
 });
 
-app.post('/create-checkout-session', async (req, res) => {
+// Protected endpoints
+app.post('/create-checkout-session', authMiddleware, ownWalletCheck, createSessionSchema, async (req, res) => {
   try {
+    const { error } = createSessionSchema.validate(req.body);
+    if (error) return res.status(400).json({ error: error.details[0].message });
+
     const amount = Number(req.body?.amount || 0);
     const currency = (req.body?.currency || 'usd').toString().toLowerCase();
     const email = (req.body?.email || '').toString();
@@ -365,8 +421,11 @@ app.post('/create-checkout-session', async (req, res) => {
   }
 });
 
-app.post('/confirm-topup', async (req, res) => {
+app.post('/confirm-topup', authMiddleware, ownWalletCheck, confirmSchema, async (req, res) => {
   try {
+    const { error } = confirmSchema.validate(req.body);
+    if (error) return res.status(400).json({ error: error.details[0].message });
+
     const sessionId = (req.body?.sessionId || '').toString();
     if (!sessionId) {
       return res.status(400).json({ error: 'Missing sessionId' });
@@ -374,8 +433,7 @@ app.post('/confirm-topup', async (req, res) => {
 
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     const amount = Number(session.amount_total || 0) / 100;
-    const email =
-      session.metadata?.email || session.customer_details?.email || '';
+    const email = session.metadata?.email || session.customer_details?.email || '';
     const walletId = (session.metadata?.walletId || '').toString();
 
     if (session.payment_status !== 'paid') {
@@ -417,6 +475,14 @@ app.post('/confirm-topup', async (req, res) => {
     console.error('confirm-topup error:', err);
     return res.status(500).json({ error: 'Unable to confirm top-up' });
   }
+});
+
+// Health (no auth)
+app.get('/health', (_req, res) => {
+  res.json({
+    ok: true,
+    service: 'stripe-backend',
+  });
 });
 
 app.listen(port, () => {

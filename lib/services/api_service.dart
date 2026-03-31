@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
@@ -8,6 +10,12 @@ class ApiService {
     'API_BASE_URL',
     defaultValue: 'https://www.infinity-sharing.money/api',
   );
+
+  static Future<String?> getIdToken() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+    return await user.getIdToken();
+  }
 
   static Uri uri(String path, {Map<String, String>? queryParameters}) {
     final normalizedPath = path.startsWith('/') ? path : '/$path';
@@ -43,4 +51,12 @@ class ApiService {
       throw Exception('Invalid JSON from $endpoint');
     }
   }
+
+  // Helper for auth POST
+  static Map<String, String> getAuthHeaders({bool includeContentType = true}) {
+    final headers = <String, String>{};
+    if (includeContentType) headers['Content-Type'] = 'application/json';
+    return headers;
+  }
 }
+
