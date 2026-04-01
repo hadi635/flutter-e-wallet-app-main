@@ -9,6 +9,9 @@ class CustomField extends StatelessWidget {
   final Color? focusColor;
   final Color? borderColor;
   final TextEditingController? controller;
+  final bool readOnly;
+  final void Function()? onTap;
+  final int maxLines;
 
   const CustomField(
       {Key? key,
@@ -18,7 +21,10 @@ class CustomField extends StatelessWidget {
       this.borderColor,
       this.prefixIcon,
       this.keybard,
-      this.controller})
+      this.controller,
+      this.readOnly = false,
+      this.onTap,
+      this.maxLines = 1})
       : super(key: key);
 
   @override
@@ -27,6 +33,9 @@ class CustomField extends StatelessWidget {
       controller: controller,
       keyboardType: keybard,
       obscureText: secure,
+      readOnly: readOnly,
+      onTap: onTap,
+      maxLines: secure ? 1 : maxLines,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
           filled: true,

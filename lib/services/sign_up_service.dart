@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:ewallet/views/profileSetUpView/profile_setup_view.dart';
+import 'package:ewallet/views/nav/nav_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
@@ -8,8 +8,12 @@ import 'package:get/get.dart';
 class SignUpService {
   Future<void> createAccount({
     required BuildContext context,
+    required String fullName,
+    required String dateOfBirth,
     required String email,
     required String password,
+    required String averageMonthlyTransactions,
+    required String profileImage,
   }) async {
     //Loading Effect
     showDialog(
@@ -42,14 +46,15 @@ class SignUpService {
             .doc(email)
             .set({
           "Email": email,
+          "Full Name": fullName,
+          "Date of Birth": dateOfBirth,
+          "Average Monthly Transactions": averageMonthlyTransactions,
+          "Profile Pic": profileImage,
           "Balance": 0.00,
           "WalletId": "",
         }, SetOptions(merge: true));
 
-        //Navigate to ProfileSetupView
-        Get.offAll(() => ProfileSetupView(
-              emailAddress: email,
-            ));
+        Get.offAll(() => NavView());
         Get.snackbar("congratulations".tr, "signup_success".tr);
         return;
       }

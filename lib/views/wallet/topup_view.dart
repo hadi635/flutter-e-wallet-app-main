@@ -2,17 +2,15 @@ import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ewallet/globals/custom_button.dart';
-import 'package:ewallet/globals/custom_field.dart';
 import 'package:ewallet/globals/glass_container.dart';
-import 'package:ewallet/services/stripe_service.dart';
 import 'package:ewallet/utils/colors.dart';
 import 'package:ewallet/utils/money_formatter.dart';
-import 'package:ewallet/views/sendMoneyView/send_money_view.dart';
+import 'package:ewallet/views/wallet/add_money_view.dart';
+import 'package:ewallet/views/wallet/cash_out_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class TopUpView extends StatefulWidget {
   const TopUpView({super.key});
@@ -22,45 +20,10 @@ class TopUpView extends StatefulWidget {
 }
 
 class _TopUpViewState extends State<TopUpView> {
-  static const String cashOutNumber = '+964 78 75 84 48 84';
-
-  final TextEditingController _amountController = TextEditingController();
-  final StripeService _stripeService = StripeService();
-  bool _isProcessing = false;
-  String? _pendingSessionId;
-
-  @override
-  void initState() {
-    super.initState();
-    _restorePendingSession();
-  }
-
-  Future<void> _restorePendingSession() async {
-    final sessionId = Uri.base.queryParameters['session_id']?.trim() ?? '';
-    if (sessionId.isNotEmpty) {
-      await StripeService.savePendingSessionId(sessionId);
-      if (mounted) {
-        setState(() => _pendingSessionId = sessionId);
-      }
-      return;
-    }
-
-    final storedSessionId = await StripeService.getPendingSessionId();
-    if (storedSessionId != null && mounted) {
-      setState(() => _pendingSessionId = storedSessionId);
-    }
-  }
-
   String _generateWalletId() {
     final rand = Random();
     final digits = List.generate(10, (_) => rand.nextInt(10)).join();
     return 'W$digits';
-  }
-
-  @override
-  void dispose() {
-    _amountController.dispose();
-    super.dispose();
   }
 
   Future<String?> _getOrCreateWalletId() async {
@@ -82,10 +45,7 @@ class _TopUpViewState extends State<TopUpView> {
       Dialog(
         backgroundColor: Colors.transparent,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: 360,
-            minWidth: 280,
-          ),
+          constraints: const BoxConstraints(maxWidth: 360, minWidth: 280),
           child: Container(
             padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
             decoration: BoxDecoration(
@@ -142,109 +102,58 @@ class _TopUpViewState extends State<TopUpView> {
     );
   }
 
-  Future<void> _callCashOutNumber() async {
-    final normalized = cashOutNumber.replaceAll(' ', '');
-    final uri = Uri.parse('tel:$normalized');
-    final launched = await launchUrl(uri);
-    if (!launched) {
-      Get.snackbar('error'.tr, cashOutNumber);
-    }
-  }
-
-  Future<void> _openStripePaymentLink() async {
-    final amount = MoneyFormatter.parseAmount(_amountController.text);
-    if (amount <= 0) {
-      Get.snackbar('invalid_amount'.tr, 'enter_valid_amount'.tr);
-      return;
-    }
-
-    final user = FirebaseAuth.instance.currentUser;
-    final email = user?.email;
-    if (email == null) {
-      Get.snackbar('auth_error'.tr, 'please_login_again'.tr);
-      return;
-    }
-
-    setState(() => _isProcessing = true);
-    try {
-      if (!StripeService.hasBackend) {
-        Get.snackbar(
-          'error'.tr,
-          'Missing API_BASE_URL. Set --dart-define=API_BASE_URL=https://www.infinity-sharing.money/api',
-        );
-        return;
-      }
-
-      final walletId = await _getOrCreateWalletId();
-
-      final session = await _stripeService.createCheckoutSession(
-        amount: amount,
-        currency: 'usd',
-        email: email,
-        walletId: walletId,
-      );
-      setState(() {
-        _pendingSessionId = session.sessionId;
-      });
-      await StripeService.savePendingSessionId(session.sessionId);
-      final uri = Uri.parse(session.checkoutUrl);
-      final launched = await launchUrl(uri, webOnlyWindowName: '_self');
-      if (!launched) {
-        throw Exception('Unable to open Stripe checkout');
-      }
-      Get.snackbar('topup_pending'.tr, 'payment_opened_return_confirm'.tr);
-    } catch (e) {
-      Get.snackbar(
-        'topup_failed'.tr,
-        e.toString().replaceFirst('Exception: ', ''),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isProcessing = false);
-      }
-    }
-  }
-
-  Future<void> _confirmTopUp() async {
-    final sessionId = _pendingSessionId;
-    if (sessionId == null || sessionId.isEmpty) {
-      Get.snackbar('error'.tr, 'missing_session_id'.tr);
-      return;
-    }
-
-    setState(() => _isProcessing = true);
-    try {
-      final result = await _stripeService.confirmTopUp(sessionId: sessionId);
-      if (!result.success) {
-        Get.snackbar('topup_failed'.tr, result.message);
-        return;
-      }
-
-      if (result.credited) {
-        await StripeService.clearPendingSessionId();
-        setState(() {
-          _pendingSessionId = null;
-        });
-        Get.snackbar('topup_success'.tr, 'wallet_credited_successfully'.tr);
-      } else if (result.message.toLowerCase().contains('already credited')) {
-        await StripeService.clearPendingSessionId();
-        setState(() {
-          _pendingSessionId = null;
-        });
-        Get.snackbar('topup_success'.tr, result.message);
-      } else {
-        Get.snackbar('topup_pending'.tr, result.message);
-      }
-    } catch (e) {
-      Get.snackbar(
-        'topup_failed'.tr,
-        e.toString().replaceFirst('Exception: ', ''),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isProcessing = false);
-      }
-    }
+  Widget _quickAction({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required VoidCallback onTap,
+    Color? color,
+  }) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            color: Colors.white.withAlpha(10),
+            border: Border.all(color: Appcolor.glassBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: (color ?? Appcolor.primary).withAlpha(32),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color ?? Appcolor.accent),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: Colors.white.withAlpha(180),
+                  fontSize: 12,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -316,122 +225,68 @@ class _TopUpViewState extends State<TopUpView> {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: CustomButton(
-                                  title: 'generate_qr'.tr,
-                                  bgColor: Appcolor.secondary,
-                                  ontap: () async {
-                                    final ensured = walletId.isNotEmpty
-                                        ? walletId
-                                        : await _getOrCreateWalletId();
-                                    if (ensured == null || ensured.isEmpty) {
-                                      Get.snackbar(
-                                        'error'.tr,
-                                        'please_login_again'.tr,
-                                      );
-                                      return;
-                                    }
-                                    await _showMyQr(ensured);
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: CustomButton(
-                                  title: 'scan_qr'.tr,
-                                  ontap: () => Get.to(
-                                    () => const SendMoneyView(),
-                                  ),
-                                ),
-                              ),
-                            ],
+                          CustomButton(
+                            title: 'show_my_qr'.tr,
+                            bgColor: Appcolor.secondary,
+                            ontap: () async {
+                              final ensured = walletId.isNotEmpty
+                                  ? walletId
+                                  : await _getOrCreateWalletId();
+                              if (ensured == null || ensured.isEmpty) {
+                                Get.snackbar(
+                                  'error'.tr,
+                                  'please_login_again'.tr,
+                                );
+                                return;
+                              }
+                              await _showMyQr(ensured);
+                            },
                           ),
                         ],
                       ),
                     );
                   },
                 ),
-                const SizedBox(height: 22),
-                GlassContainer(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    children: [
-                      CustomField(
-                        title: 'amount_to_add'.tr,
-                        keybard: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        controller: _amountController,
-                        prefixIcon: Icons.attach_money_outlined,
-                      ),
-                      const SizedBox(height: 14),
-                      CustomButton(
-                        title:
-                            _isProcessing ? 'please_wait'.tr : 'go_stripe'.tr,
-                        bgColor: Appcolor.primary,
-                        ontap: _isProcessing ? null : _openStripePaymentLink,
-                      ),
-                    ],
-                  ),
-                ),
-                if (StripeService.hasBackend && _pendingSessionId != null) ...[
-                  const SizedBox(height: 12),
-                  GlassContainer(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'topup_pending'.tr,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'payment_opened_return_confirm'.tr,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        const SizedBox(height: 10),
-                        CustomButton(
-                          title: _isProcessing
-                              ? 'please_wait'.tr
-                              : 'confirm_topup'.tr,
-                          bgColor: Appcolor.primary,
-                          ontap: _isProcessing ? null : _confirmTopUp,
-                        ),
-                      ],
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    _quickAction(
+                      title: 'add_money'.tr,
+                      subtitle: 'add_money_wallet_short'.tr,
+                      icon: Icons.add_card_rounded,
+                      onTap: () => Get.to(() => const AddMoneyView()),
                     ),
-                  ),
-                ],
-                const SizedBox(height: 16),
+                    const SizedBox(width: 12),
+                    _quickAction(
+                      title: 'cash_out'.tr,
+                      subtitle: 'cash_out_wallet_short'.tr,
+                      icon: Icons.local_atm_rounded,
+                      color: Appcolor.secondary,
+                      onTap: () => Get.to(() => const CashOutView()),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
                 GlassContainer(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'cash_out'.tr,
+                        'wallet_notes_title'.tr,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontWeight: FontWeight.w700,
                           fontSize: 16,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        '${'cash_out_help'.tr}: $cashOutNumber',
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      const SizedBox(height: 10),
-                      CustomButton(
-                        title: 'contact_cash_out'.tr,
-                        bgColor: Appcolor.secondary,
-                        ontap: _callCashOutNumber,
+                        'wallet_notes_body'.tr,
+                        style: TextStyle(
+                          color: Colors.white.withAlpha(190),
+                          height: 1.5,
+                        ),
                       ),
                     ],
                   ),

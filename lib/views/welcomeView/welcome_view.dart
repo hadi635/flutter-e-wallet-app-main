@@ -62,11 +62,11 @@ class WelcomeView extends StatelessWidget {
                     children: [
                       CustomButton(
                         title: 'create_new_account'.tr,
-                        ontap: () => Get.to(() => SignUpView()),
+                        ontap: () => Get.to(() => const SignUpView()),
                       ),
                       const SizedBox(height: 12),
                       TextButton(
-                        onPressed: () => Get.to(() => LoginView()),
+                        onPressed: () => Get.to(() => const LoginView()),
                         child: Text(
                           'already_have_account'.tr,
                           style: const TextStyle(

@@ -119,7 +119,7 @@ class _LoginViewState extends State<LoginView> {
                   ),
                   const SizedBox(height: 8),
                   TextButton(
-                    onPressed: () => Get.to(() => SignUpView()),
+                    onPressed: () => Get.to(() => const SignUpView()),
                     child: Text(
                       "create_account".tr,
                       style: TextStyle(

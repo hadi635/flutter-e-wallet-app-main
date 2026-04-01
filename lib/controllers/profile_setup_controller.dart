@@ -9,6 +9,20 @@ class ProfileSetupController extends GetxController {
   Uint8List? pickedImageBytes;
   RxString imageDownloadLnk = RxString("");
 
+  void setExistingImage(String url) {
+    imageDownloadLnk.value = url;
+    pickedImage = null;
+    pickedImageBytes = null;
+    update();
+  }
+
+  void reset() {
+    pickedImage = null;
+    pickedImageBytes = null;
+    imageDownloadLnk.value = "";
+    update();
+  }
+
   Future<void> imagePicker() async {
     try {
       final image = await ImagePicker().pickImage(source: ImageSource.gallery);

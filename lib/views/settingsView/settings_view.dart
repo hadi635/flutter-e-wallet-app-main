@@ -4,6 +4,8 @@ import 'package:ewallet/localization/app_translations.dart';
 import 'package:ewallet/utils/colors.dart';
 import 'package:ewallet/views/activityView/activity_view.dart';
 import 'package:ewallet/views/profileSetUpView/profile_setup_view.dart';
+import 'package:ewallet/views/settingsView/fees_view.dart';
+import 'package:ewallet/views/settingsView/support_chat_view.dart';
 import 'package:ewallet/views/welcomeView/welcome_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -21,8 +23,8 @@ class SettingsView extends StatelessWidget {
           style: const TextStyle(color: Colors.white),
         ),
         content: Text(
-          'privacy_content'.tr,
-          style: const TextStyle(color: Colors.white70),
+          'wallet_policy_text'.tr,
+          style: const TextStyle(color: Colors.white70, height: 1.5),
         ),
         actions: [
           TextButton(
@@ -99,6 +101,31 @@ class SettingsView extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               GlassContainer(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'security_reassurance'.tr,
+                      style: const TextStyle(
+                        color: Appcolor.accent,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'settings_security_text'.tr,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              GlassContainer(
                 padding: const EdgeInsets.all(8),
                 child: Column(
                   children: [
@@ -113,6 +140,16 @@ class SettingsView extends StatelessWidget {
                       icon: Icons.history_rounded,
                       title: 'history'.tr,
                       onTap: () => Get.to(() => ActivityView()),
+                    ),
+                    _settingTile(
+                      icon: Icons.chat_rounded,
+                      title: 'support_chat'.tr,
+                      onTap: () => Get.to(() => const SupportChatView()),
+                    ),
+                    _settingTile(
+                      icon: Icons.receipt_long_rounded,
+                      title: 'fees_table'.tr,
+                      onTap: () => Get.to(() => const FeesView()),
                     ),
                     _settingTile(
                       icon: Icons.privacy_tip_rounded,
@@ -166,7 +203,7 @@ class SettingsView extends StatelessWidget {
                           ),
                         ],
                       ),
-                    )
+                    ),
                   ],
                 ),
               ),
@@ -190,7 +227,7 @@ class SettingsView extends StatelessWidget {
                   icon: const Icon(Icons.logout_rounded),
                   label: Text('logout'.tr),
                 ),
-              )
+              ),
             ],
           ),
         ),
@@ -258,17 +295,17 @@ class SettingsView extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return InkWell(
-      borderRadius: BorderRadius.circular(12),
       onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: const Duration(milliseconds: 220),
         curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: active ? Appcolor.accent.withAlpha(38) : Colors.white12,
+          borderRadius: BorderRadius.circular(14),
+          color: active ? Appcolor.primary.withAlpha(38) : Colors.transparent,
           border: Border.all(
-            color: active ? Appcolor.accent : Colors.white24,
+            color: active ? Appcolor.accent : Appcolor.glassBorder,
           ),
         ),
         child: Center(

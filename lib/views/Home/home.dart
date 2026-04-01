@@ -7,7 +7,7 @@ import 'package:ewallet/utils/money_formatter.dart';
 import 'package:ewallet/views/activityView/activity_view.dart';
 import 'package:ewallet/views/profileSetUpView/profile_setup_view.dart';
 import 'package:ewallet/views/sendMoneyView/send_money_view.dart';
-import 'package:ewallet/views/wallet/topup_view.dart';
+import 'package:ewallet/views/wallet/cash_out_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
@@ -149,7 +149,7 @@ class Home extends StatelessWidget {
                         const SizedBox(width: 12),
                         Expanded(
                           child: InkWell(
-                            onTap: () => Get.to(() => const TopUpView()),
+                            onTap: () => Get.to(() => const CashOutView()),
                             child: CustomHomeItem(
                               title: 'cash_out'.tr,
                               icon: Icons.local_atm_rounded,

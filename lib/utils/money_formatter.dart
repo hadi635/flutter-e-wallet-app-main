@@ -13,4 +13,8 @@ class MoneyFormatter {
   static String fixed2(num value) {
     return round2(value).toStringAsFixed(2);
   }
+
+  static String fixed6(num value) {
+    return value.toDouble().toStringAsFixed(6);
+  }
 }

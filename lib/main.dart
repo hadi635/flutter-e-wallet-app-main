@@ -11,9 +11,13 @@ import 'package:ewallet/views/nav/nav_view.dart';
 import 'package:ewallet/views/paymentResult/payment_result_view.dart';
 import 'package:ewallet/views/profileSetUpView/profile_setup_view.dart';
 import 'package:ewallet/views/sendMoneyView/send_money_view.dart';
+import 'package:ewallet/views/settingsView/fees_view.dart';
 import 'package:ewallet/views/settingsView/settings_view.dart';
+import 'package:ewallet/views/settingsView/support_chat_view.dart';
 import 'package:ewallet/views/splash/splash_screen_view.dart';
 import 'package:ewallet/views/successView/success_view.dart';
+import 'package:ewallet/views/wallet/add_money_view.dart';
+import 'package:ewallet/views/wallet/cash_out_view.dart';
 import 'package:ewallet/views/wallet/topup_view.dart';
 import 'package:ewallet/views/welcomeView/welcome_view.dart';
 import 'package:flutter/foundation.dart';
@@ -90,7 +94,7 @@ class MyApp extends StatelessWidget {
           ),
           GetPage(
             name: AppRoutes.signup,
-            page: () => SignUpView(),
+            page: () => const SignUpView(),
           ),
           GetPage(
             name: AppRoutes.nav,
@@ -105,8 +109,24 @@ class MyApp extends StatelessWidget {
             page: () => const TopUpView(),
           ),
           GetPage(
+            name: AppRoutes.addMoney,
+            page: () => const AddMoneyView(),
+          ),
+          GetPage(
+            name: AppRoutes.cashOut,
+            page: () => const CashOutView(),
+          ),
+          GetPage(
             name: AppRoutes.settings,
             page: () => const SettingsView(),
+          ),
+          GetPage(
+            name: AppRoutes.support,
+            page: () => const SupportChatView(),
+          ),
+          GetPage(
+            name: AppRoutes.fees,
+            page: () => const FeesView(),
           ),
           GetPage(
             name: AppRoutes.sendMoney,
@@ -122,7 +142,7 @@ class MyApp extends StatelessWidget {
           ),
           GetPage(
             name: AppRoutes.profileSetup,
-            page: () => ProfileSetupView(),
+            page: () => const ProfileSetupView(),
           ),
           GetPage(
             name: AppRoutes.transferAmount,
@@ -196,6 +216,10 @@ class AppRoutes {
   static const String home = '/home';
   static const String wallet = '/wallet';
   static const String settings = '/settings';
+  static const String addMoney = '/add-money';
+  static const String cashOut = '/cash-out';
+  static const String support = '/support';
+  static const String fees = '/fees';
   static const String sendMoney = '/send-money';
   static const String contacts = '/contacts';
   static const String activity = '/activity';
@@ -215,6 +239,10 @@ class AppRoutes {
     home,
     wallet,
     settings,
+    addMoney,
+    cashOut,
+    support,
+    fees,
     sendMoney,
     contacts,
     activity,
