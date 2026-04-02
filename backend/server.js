@@ -6,7 +6,7 @@ import helmet from 'helmet';
 import Joi from 'joi';
 import admin from 'firebase-admin';
 import Stripe from 'stripe';
-import { createUsdcMonitor, USDC_MINT_ADDRESS } from './solana_usdc_monitor.js';
+import { createCryptoTopupService } from './services/crypto_topup_service.js';
 
 const app = express();
 
@@ -156,7 +156,6 @@ const stripe = new Stripe(stripeSecretKey);
 const firestoreProjectId = firebaseProjectId;
 const solanaWalletAddress = (process.env.SOLANA_WALLET_ADDRESS || '').trim();
 const solanaRpcUrl = (process.env.SOLANA_RPC_URL || '').trim();
-let usdcMonitor = null;
 
 async function findUserWalletTarget({ email, walletId }) {
   const normalizedWalletId = (walletId || '').toString().trim();
@@ -229,48 +228,6 @@ function calculateTopupAmounts(grossAmount) {
     grossAmount: normalizedGross,
     feeAmount,
     netAmount,
-  };
-}
-
-function calculateCryptoTopupAmounts(grossAmount) {
-  const toMoney = (value) => Math.round(Number(value) * 1000000) / 1000000;
-  const normalizedGross = toMoney(grossAmount);
-  const feeAmount = toMoney(
-    normalizedGross * (cryptoTopupFeePercentage / 100),
-  );
-  const netAmount = toMoney(Math.max(0, normalizedGross - feeAmount));
-  return {
-    grossAmount: normalizedGross,
-    feeAmount,
-    netAmount,
-  };
-}
-
-function resolveCryptoUsdRate({
-  tokenSymbol,
-  tokenMint,
-}) {
-  const normalizedSymbol = (tokenSymbol || '').toString().trim().toUpperCase();
-  const normalizedMint = (tokenMint || '').toString().trim();
-
-  // Current crypto add-money is Solana USDC, so 1 USDC = 1 USD at credit time.
-  // This helper keeps the rate conversion isolated for future non-stable assets.
-  if (normalizedSymbol === 'USDC' || normalizedMint === USDC_MINT_ADDRESS) {
-    return 1;
-  }
-
-  return 1;
-}
-
-function generateCryptoExactAmount(amount) {
-  const toMicros = (value) => Math.round(Number(value) * 1000000);
-  const baseMicros = toMicros(amount);
-  const randomMarker = Math.floor(Math.random() * 900) + 100;
-  const exactMicros = baseMicros + randomMarker;
-  return {
-    exactAmount: exactMicros / 1000000,
-    exactAmountMicros: exactMicros,
-    markerMicros: randomMarker,
   };
 }
 
@@ -398,116 +355,14 @@ async function creditWalletOnce({
   };
 }
 
-async function findPendingCryptoDepositByMicros(amountMicros) {
-  const querySnap = await db
-    .collection('crypto_pending_topups')
-    .where('status', '==', 'pending')
-    .where('expectedAmountMicros', '==', amountMicros)
-    .limit(1)
-    .get();
-
-  if (querySnap.empty) {
-    return null;
-  }
-
-  return querySnap.docs[0];
-}
-
-async function processIncomingCryptoPayment(amount, signature) {
-  const amountMicros = Math.round(Number(amount) * 1000000);
-  if (!Number.isFinite(amountMicros) || amountMicros <= 0) {
-    return;
-  }
-
-  const pendingDoc = await findPendingCryptoDepositByMicros(amountMicros);
-  if (!pendingDoc) {
-    console.log(
-      `[Crypto Top-up] No pending deposit matched ${amount} USDC for signature ${signature}`,
-    );
-    return;
-  }
-
-  const pending = pendingDoc.data();
-  if (!pending?.email && !pending?.walletId) {
-    console.error(
-      `[Crypto Top-up] Pending deposit ${pendingDoc.id} is missing email/walletId`,
-    );
-    return;
-  }
-
-  const usdRate = resolveCryptoUsdRate({
-    tokenSymbol: pending.tokenSymbol,
-    tokenMint: pending.tokenMint,
-  });
-  const usdGrossAmount = Number((Number(amount) * usdRate).toFixed(6));
-  const usdTotals = calculateCryptoTopupAmounts(usdGrossAmount);
-
-  const reference = `solana_${signature}`;
-  const result = await creditWalletOnce({
-    sessionId: reference,
-    email: pending.email || '',
-    walletId: pending.walletId || '',
-    grossAmount: usdTotals.grossAmount,
-    feeAmount: usdTotals.feeAmount,
-    netAmount: usdTotals.netAmount,
-    feePercentage: cryptoTopupFeePercentage,
-    feeFixed: 0,
-    source: 'solana_usdc',
-    senderLabel: 'Solana USDC',
-    senderEmail: 'crypto@system',
-    senderWalletId: 'SOLANA-USDC',
-    meta: {
-      tokenMint: USDC_MINT_ADDRESS,
-      tokenSymbol: pending.tokenSymbol || 'USDC',
-      blockchain: 'solana',
-      signature,
-      cryptoAmountReceived: Number(amount),
-      usdRateAtCredit: usdRate,
-      usdGrossAmount,
-    },
-  });
-
-  await pendingDoc.ref.set(
-    {
-      status: result.credited ? 'completed' : 'credited',
-      credited: true,
-      creditedAt: admin.firestore.FieldValue.serverTimestamp(),
-      signature,
-      processedReference: reference,
-      actualCryptoAmountReceived: Number(amount),
-      usdRateAtCredit: usdRate,
-      creditedGrossUsdAmount: usdTotals.grossAmount,
-      creditedFeeUsdAmount: usdTotals.feeAmount,
-      creditedNetUsdAmount: usdTotals.netAmount,
-    },
-    { merge: true },
-  );
-
-  console.log(
-    `[Crypto Top-up] Deposit ${pendingDoc.id} credited for ${pending.email || pending.walletId} with signature ${signature}`,
-  );
-}
-
-async function startSolanaUsdcWatcher() {
-  if (!solanaWalletAddress || !solanaRpcUrl) {
-    console.log(
-      '[Crypto Top-up] SOLANA_WALLET_ADDRESS or SOLANA_RPC_URL is missing. Crypto watcher not started.',
-    );
-    return;
-  }
-
-  usdcMonitor = await createUsdcMonitor({
-    walletAddress: solanaWalletAddress,
-    rpcUrl: solanaRpcUrl,
-    onIncomingPayment: async (amount, signature) => {
-      try {
-        await processIncomingCryptoPayment(amount, signature);
-      } catch (error) {
-        console.error('[Crypto Top-up] Failed to process incoming payment:', error);
-      }
-    },
-  });
-}
+const cryptoTopupService = createCryptoTopupService({
+  db,
+  solanaWalletAddress,
+  solanaRpcUrl,
+  cryptoTopupFeePercentage,
+  creditWalletOnce,
+  findUserWalletTarget,
+});
 
 // Webhook (no auth, raw body first)
 app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -672,10 +527,6 @@ app.post(
         return res.status(400).json({ error: error.details[0].message });
       }
 
-      if (!solanaWalletAddress) {
-        return res.status(500).json({ error: 'Crypto wallet is not configured' });
-      }
-
       const amount = Number(req.body?.amount || 0);
       const email = (req.body?.email || '').toString().trim();
       const walletId = (req.body?.walletId || '').toString().trim();
@@ -684,49 +535,16 @@ app.post(
         return res.status(400).json({ error: 'Invalid amount' });
       }
 
-      const exact = generateCryptoExactAmount(amount);
-      const totals = calculateCryptoTopupAmounts(exact.exactAmount);
-      const target = await findUserWalletTarget({ email, walletId });
-      const depositRef = db.collection('crypto_pending_topups').doc();
-
-      await depositRef.set({
-        depositId: depositRef.id,
+      const result = await cryptoTopupService.createTopup({
+        amount,
         email,
         walletId,
-        userDocId: target.userDocId,
-        userLookup: target.matchedBy,
-        requestedAmount: amount,
-        requestedAmountMicros: Math.round(amount * 1000000),
-        expectedAmount: totals.grossAmount,
-        expectedAmountMicros: exact.exactAmountMicros,
-        markerMicros: exact.markerMicros,
-        feeAmount: totals.feeAmount,
-        netAmount: totals.netAmount,
-        estimatedUsdRate: 1,
-        feePercentage: cryptoTopupFeePercentage,
-        status: 'pending',
-        blockchain: 'solana',
-        tokenSymbol: 'USDC',
-        tokenMint: USDC_MINT_ADDRESS,
-        depositWalletAddress: solanaWalletAddress,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      return res.json({
-        depositId: depositRef.id,
-        depositWalletAddress: solanaWalletAddress,
-        tokenMint: USDC_MINT_ADDRESS,
-        tokenSymbol: 'USDC',
-        blockchain: 'Solana',
-        amountToSend: totals.grossAmount,
-        requestedAmount: amount,
-        feeAmount: totals.feeAmount,
-        netAmount: totals.netAmount,
-        status: 'pending',
-      });
+      return res.json(result);
     } catch (err) {
       console.error('create-crypto-topup error:', err);
-      return res.status(500).json({ error: 'Unable to create crypto top-up' });
+      return res.status(500).json({ error: err.message || 'Unable to create crypto top-up' });
     }
   },
 );
@@ -742,42 +560,21 @@ app.post(
       }
 
       const depositId = (req.body?.depositId || '').toString().trim();
-      const depositSnap = await db
-        .collection('crypto_pending_topups')
-        .doc(depositId)
-        .get();
-
-      if (!depositSnap.exists) {
-        return res.status(404).json({ error: 'Crypto top-up not found' });
-      }
-
-      const data = depositSnap.data() || {};
-      if (
-        (data.email || '').toString().toLowerCase() !== req.user.email.toLowerCase()
-      ) {
-        return res.status(403).json({ error: 'Not your crypto top-up' });
-      }
-
-      return res.json({
-        success: true,
-        credited: data.status === 'completed' || data.credited === true,
-        status: data.status || 'pending',
-        amountToSend: data.expectedAmount || 0,
-        netAmount: data.netAmount || 0,
-        feeAmount: data.feeAmount || 0,
-        depositWalletAddress: data.depositWalletAddress || '',
-        tokenMint: data.tokenMint || USDC_MINT_ADDRESS,
-        tokenSymbol: data.tokenSymbol || 'USDC',
-        blockchain: data.blockchain || 'Solana',
-        signature: data.signature || '',
-        message:
-          data.status === 'completed' || data.credited === true
-            ? 'Wallet credited successfully'
-            : 'Waiting for the Solana USDC payment to arrive',
+      const result = await cryptoTopupService.confirmTopup({
+        depositId,
+        requesterEmail: req.user.email,
       });
+
+      return res.json(result);
     } catch (err) {
       console.error('confirm-crypto-topup error:', err);
-      return res.status(500).json({ error: 'Unable to confirm crypto top-up' });
+      if (err.message === 'Crypto top-up not found') {
+        return res.status(404).json({ error: err.message });
+      }
+      if (err.message === 'Not your crypto top-up') {
+        return res.status(403).json({ error: err.message });
+      }
+      return res.status(500).json({ error: err.message || 'Unable to confirm crypto top-up' });
     }
   },
 );
@@ -792,7 +589,7 @@ app.get('/health', (_req, res) => {
 
 app.listen(port, () => {
   console.log(`Stripe backend running on http://localhost:${port}`);
-  startSolanaUsdcWatcher().catch((error) => {
+  cryptoTopupService.startWatcher().catch((error) => {
     console.error('[Crypto Top-up] Failed to start Solana watcher:', error);
   });
 });

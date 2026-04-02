@@ -119,7 +119,7 @@ class AppTranslations extends Translations {
     'add_money': 'Add Money',
     'choose_add_money_method': 'Choose how you want to add money',
     'add_money_intro':
-        'Pick the funding method that fits you. Card payments open Stripe instantly, crypto is reserved for the next setup task, and Wish Money or TapTap Send is handled by a third party.',
+        'Pick the funding method that fits you. Card payments open Stripe instantly, crypto uses Solana USDC deposit instructions with automatic wallet credit, and Wish Money or TapTap Send is handled by a third party.',
     'card_method': 'Credit Card / Mastercard / Apple Pay',
     'card_method_subtitle':
         'Instant funding through Stripe checkout with secure card processing.',
@@ -139,8 +139,7 @@ class AppTranslations extends Translations {
     'stripe_backend_missing':
         'Missing API_BASE_URL. Set --dart-define=API_BASE_URL=https://www.infinity-sharing.money/api',
     'crypto_coming_soon':
-        'Crypto flow is reserved for the next task and is shown here as a placeholder.',
-    'crypto_payment_created': 'Crypto payment instructions created.',
+        'Crypto cash out setup is still pending.',
     'missing_crypto_deposit': 'Missing crypto deposit request.',
     'crypto_send_exact_title': 'Send the exact crypto amount',
     'crypto_wallet_address': 'Deposit wallet',
@@ -151,6 +150,9 @@ class AppTranslations extends Translations {
     'crypto_send_exact_body':
         'Send exactly this USDC amount on Solana to the wallet above. After the transfer is confirmed on-chain, tap the button below to refresh and the app will credit your wallet balance automatically.',
     'i_sent_crypto': 'I sent the crypto',
+    'payment_auto_checking': 'Payment opened. The app is checking status automatically.',
+    'payment_waiting_credit': 'Waiting for Stripe payment confirmation and wallet credit.',
+    'crypto_waiting_credit': 'Waiting for Solana payment confirmation and automatic wallet credit.',
     'cash_out_intro_title': 'Cash out options',
     'cash_out_intro':
         'Choose the way you want to cash out. Local cash out is handled by trusted third parties under country rules.',
@@ -160,7 +162,9 @@ class AppTranslations extends Translations {
     'agent_cash_out_contact':
         'Contact our third-party agents on the support number to receive cash-out instructions.',
     'crypto_cash_out_subtitle':
-        'Crypto cash out is available as a placeholder for the next task.',
+        'Crypto cash out is handled by third-party support through the contact number.',
+    'crypto_cash_out_contact':
+        'Contact the support number to complete crypto cash out through the third party.',
     'wish_cash_out': 'Wish Money',
     'wish_cash_out_subtitle':
         'Third-party cash out through Wish Money support.',

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -34,6 +35,8 @@ class _AddMoneyViewState extends State<AddMoneyView> {
   bool _isCryptoProcessing = false;
   CryptoTopupSession? _cryptoSession;
   String? _selectedMethod;
+  Timer? _stripePollTimer;
+  Timer? _cryptoPollTimer;
 
   @override
   void initState() {
@@ -43,6 +46,8 @@ class _AddMoneyViewState extends State<AddMoneyView> {
 
   @override
   void dispose() {
+    _stripePollTimer?.cancel();
+    _cryptoPollTimer?.cancel();
     _amountController.dispose();
     super.dispose();
   }
@@ -63,13 +68,47 @@ class _AddMoneyViewState extends State<AddMoneyView> {
     final storedSessionId = await StripeService.getPendingSessionId();
     if (storedSessionId != null && mounted) {
       setState(() => _pendingSessionId = storedSessionId);
+      _startStripePolling();
     }
 
     final pendingCryptoSession = await _cryptoTopupService.getPendingSession();
     if (pendingCryptoSession != null && mounted) {
       setState(() => _cryptoSession = pendingCryptoSession);
+      _startCryptoPolling();
       await _confirmCryptoTopup(depositId: pendingCryptoSession.depositId, silent: true);
     }
+  }
+
+  void _startStripePolling() {
+    _stripePollTimer?.cancel();
+    final sessionId = _pendingSessionId;
+    if (sessionId == null || sessionId.isEmpty) return;
+
+    _stripePollTimer = Timer.periodic(const Duration(seconds: 8), (_) async {
+      if (!mounted || _pendingSessionId == null || _isProcessing) return;
+      await _confirmTopUp(silent: true);
+    });
+  }
+
+  void _stopStripePolling() {
+    _stripePollTimer?.cancel();
+    _stripePollTimer = null;
+  }
+
+  void _startCryptoPolling() {
+    _cryptoPollTimer?.cancel();
+    final depositId = _cryptoSession?.depositId;
+    if (depositId == null || depositId.isEmpty) return;
+
+    _cryptoPollTimer = Timer.periodic(const Duration(seconds: 8), (_) async {
+      if (!mounted || _cryptoSession == null || _isCryptoProcessing) return;
+      await _confirmCryptoTopup(silent: true);
+    });
+  }
+
+  void _stopCryptoPolling() {
+    _cryptoPollTimer?.cancel();
+    _cryptoPollTimer = null;
   }
 
   String _generateWalletId() {
@@ -122,6 +161,7 @@ class _AddMoneyViewState extends State<AddMoneyView> {
       );
       setState(() => _pendingSessionId = session.sessionId);
       await StripeService.savePendingSessionId(session.sessionId);
+      _startStripePolling();
       final uri = Uri.parse(session.checkoutUrl);
       final launched = await launchUrl(uri, webOnlyWindowName: '_self');
       if (!launched) {
@@ -148,10 +188,12 @@ class _AddMoneyViewState extends State<AddMoneyView> {
     await _openStripePaymentLink();
   }
 
-  Future<void> _confirmTopUp() async {
+  Future<void> _confirmTopUp({bool silent = false}) async {
     final sessionId = _pendingSessionId;
     if (sessionId == null || sessionId.isEmpty) {
-      Get.snackbar('error'.tr, 'missing_session_id'.tr);
+      if (!silent) {
+        Get.snackbar('error'.tr, 'missing_session_id'.tr);
+      }
       return;
     }
 
@@ -159,24 +201,31 @@ class _AddMoneyViewState extends State<AddMoneyView> {
     try {
       final result = await _stripeService.confirmTopUp(sessionId: sessionId);
       if (!result.success) {
-        Get.snackbar('topup_failed'.tr, result.message);
+        if (!silent) {
+          Get.snackbar('topup_failed'.tr, result.message);
+        }
         return;
       }
 
       if (result.credited ||
           result.message.toLowerCase().contains('already credited')) {
         await StripeService.clearPendingSessionId();
+        _stopStripePolling();
         setState(() => _pendingSessionId = null);
       }
-      Get.snackbar(
-        result.credited ? 'topup_success'.tr : 'topup_pending'.tr,
-        result.credited ? 'wallet_credited_successfully'.tr : result.message,
-      );
+      if (!silent) {
+        Get.snackbar(
+          result.credited ? 'topup_success'.tr : 'topup_pending'.tr,
+          result.credited ? 'wallet_credited_successfully'.tr : result.message,
+        );
+      }
     } catch (e) {
-      Get.snackbar(
-        'topup_failed'.tr,
-        e.toString().replaceFirst('Exception: ', ''),
-      );
+      if (!silent) {
+        Get.snackbar(
+          'topup_failed'.tr,
+          e.toString().replaceFirst('Exception: ', ''),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isProcessing = false);
@@ -214,7 +263,7 @@ class _AddMoneyViewState extends State<AddMoneyView> {
       await _cryptoTopupService.savePendingSession(session);
       if (!mounted) return;
       setState(() => _cryptoSession = session);
-      Get.snackbar('crypto_method'.tr, 'crypto_payment_created'.tr);
+      _startCryptoPolling();
     } catch (e) {
       Get.snackbar(
         'topup_failed'.tr,
@@ -246,6 +295,7 @@ class _AddMoneyViewState extends State<AddMoneyView> {
       );
       if (result.credited) {
         await _cryptoTopupService.clearPendingDepositId();
+        _stopCryptoPolling();
         if (!mounted) return;
         setState(() => _cryptoSession = null);
       }
@@ -413,19 +463,34 @@ class _AddMoneyViewState extends State<AddMoneyView> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text(
-                          'payment_opened_return_confirm'.tr,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        const SizedBox(height: 10),
-                        CustomButton(
-                          title: _isProcessing
-                              ? 'please_wait'.tr
-                              : 'confirm_topup'.tr,
-                          ontap: _isProcessing ? null : _confirmTopUp,
-                        ),
-                      ],
-                    ),
+                      Text(
+                        'payment_auto_checking'.tr,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: Appcolor.accent,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'payment_waiting_credit'.tr,
+                              style: TextStyle(
+                                color: Colors.white.withAlpha(190),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                   ),
                 ],
                 const SizedBox(height: 12),
@@ -488,12 +553,26 @@ class _AddMoneyViewState extends State<AddMoneyView> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        CustomButton(
-                          title: _isCryptoProcessing
-                              ? 'please_wait'.tr
-                              : 'i_sent_crypto'.tr,
-                          bgColor: Appcolor.secondary,
-                          ontap: _isCryptoProcessing ? null : _confirmCryptoTopup,
+                        Row(
+                          children: [
+                            const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                                color: Appcolor.accent,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'crypto_waiting_credit'.tr,
+                                style: TextStyle(
+                                  color: Colors.white.withAlpha(190),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

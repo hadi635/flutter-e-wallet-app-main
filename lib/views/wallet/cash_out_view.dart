@@ -129,11 +129,11 @@ class CashOutView extends StatelessWidget {
                   title: 'crypto_method'.tr,
                   subtitle: 'crypto_cash_out_subtitle'.tr,
                   speed: 'instant'.tr,
-                  actionTitle: 'continue_text'.tr,
+                  actionTitle: 'contact_now'.tr,
                   color: Appcolor.secondary,
-                  onTap: () => Get.snackbar(
-                    'crypto_method'.tr,
-                    'crypto_coming_soon'.tr,
+                  onTap: () => WalletSupport.openSupportContactDialog(
+                    title: 'crypto_method'.tr,
+                    message: 'crypto_cash_out_contact'.tr,
                   ),
                 ),
                 const SizedBox(height: 12),

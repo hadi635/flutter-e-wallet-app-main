@@ -49,7 +49,7 @@ class _SupportChatViewState extends State<SupportChatView> {
     final q = input.toLowerCase();
 
     if (q.contains('add') || q.contains('top') || q.contains('deposit')) {
-      return 'Use Add Money to fund the wallet by card, crypto, or Wish Money / TapTap Send. Card payments open Stripe instantly. Crypto is reserved for the next task. Wish Money / TapTap Send is handled by a third party and usually takes 2 to 3 business hours.';
+      return 'Use Add Money to fund the wallet by card, crypto, or Wish Money / TapTap Send. Card payments open Stripe instantly. Crypto uses Solana USDC deposit instructions and credits the wallet after the payment arrives. Wish Money / TapTap Send is handled by a third party and usually takes 2 to 3 business hours.';
     }
     if (q.contains('cash') || q.contains('withdraw')) {
       return 'Cash out is available through our agents, crypto, and Wish Money. Agent and Wish Money cash out are handled by third parties through the support number shown in the app. Crypto cash out is kept ready for the next task.';
