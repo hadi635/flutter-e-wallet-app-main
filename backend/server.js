@@ -166,7 +166,7 @@ const successUrl =
   process.env.STRIPE_SUCCESS_URL || 'http://localhost:3000/success';
 const cancelUrl = process.env.STRIPE_CANCEL_URL || 'http://localhost:3000/cancel';
 const publicBaseUrl =
-  (process.env.PUBLIC_BASE_URL || 'https://infinity-sharing.money').replace(
+  (process.env.PUBLIC_BASE_URL || 'https://www.infinity-sharing.money/api').replace(
     /\/+$/,
     '',
   );
