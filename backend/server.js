@@ -591,9 +591,11 @@ app.post(
         /[^a-zA-Z0-9._-]/g,
         '_',
       );
-      const safeName = path
-        .basename(fileName)
-        .replace(/[^a-zA-Z0-9._-]/g, '_');
+      const originalBaseName = path.basename(
+        fileName,
+        path.extname(fileName),
+      );
+      const safeName = originalBaseName.replace(/[^a-zA-Z0-9._-]/g, '_');
       const finalName =
         `${safeOwner}_${Date.now()}_${crypto.randomUUID()}_${safeName}.${extension}`;
       const finalPath = path.join(uploadDir, finalName);
