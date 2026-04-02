@@ -4,6 +4,7 @@ import 'package:ewallet/globals/custom_list.dart';
 import 'package:ewallet/globals/glass_container.dart';
 import 'package:ewallet/utils/colors.dart';
 import 'package:ewallet/utils/money_formatter.dart';
+import 'package:ewallet/utils/public_url.dart';
 import 'package:ewallet/views/activityView/activity_view.dart';
 import 'package:ewallet/views/profileSetUpView/profile_setup_view.dart';
 import 'package:ewallet/views/sendMoneyView/send_money_view.dart';
@@ -97,7 +98,12 @@ class Home extends StatelessWidget {
                                                     .toString()
                                                     .isNotEmpty
                                                 ? NetworkImage(
-                                                    userData?["Profile Pic"])
+                                                    normalizePublicUrl(
+                                                      userData?["Profile Pic"]
+                                                              ?.toString() ??
+                                                          '',
+                                                    ),
+                                                  )
                                                 : const NetworkImage(
                                                     "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRu9mCh1J0Pulu5JXw8cpYkMsCiyFJavo-esQ&usqp=CAU"),
                                             fit: BoxFit.cover,

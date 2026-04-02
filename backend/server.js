@@ -145,6 +145,11 @@ const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
 const successUrl =
   process.env.STRIPE_SUCCESS_URL || 'http://localhost:3000/success';
 const cancelUrl = process.env.STRIPE_CANCEL_URL || 'http://localhost:3000/cancel';
+const publicBaseUrl =
+  (process.env.PUBLIC_BASE_URL || 'https://infinity-sharing.money').replace(
+    /\/+$/,
+    '',
+  );
 const configuredTopupFeePercentage = Number(process.env.TOPUP_FEE_PERCENT || 5.5);
 const topupFeePercentage = Number.isFinite(configuredTopupFeePercentage)
   ? configuredTopupFeePercentage
@@ -602,8 +607,7 @@ app.post(
 
       await fs.writeFile(finalPath, imageBuffer);
 
-      const imageUrl =
-        `${req.protocol}://${req.get('host')}/uploads/profiles/${finalName}`;
+      const imageUrl = `${publicBaseUrl}/uploads/profiles/${finalName}`;
       return res.json({
         success: true,
         imageUrl,

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:ewallet/services/profile_image_service.dart';
+import 'package:ewallet/utils/public_url.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -12,7 +13,7 @@ class ProfileSetupController extends GetxController {
   bool isUploading = false;
 
   void setExistingImage(String url) {
-    imageDownloadLnk.value = url;
+    imageDownloadLnk.value = normalizePublicUrl(url);
     pickedImage = null;
     pickedImageBytes = null;
     update();
@@ -42,10 +43,12 @@ class ProfileSetupController extends GetxController {
       isUploading = true;
       update();
 
-      imageDownloadLnk.value = await _profileImageService.uploadProfileImage(
+      imageDownloadLnk.value = normalizePublicUrl(
+        await _profileImageService.uploadProfileImage(
         imageBytes: pickedImageBytes!,
         fileName: image.name,
         contentType: image.mimeType ?? 'image/jpeg',
+        ),
       );
       update();
     } catch (e) {
