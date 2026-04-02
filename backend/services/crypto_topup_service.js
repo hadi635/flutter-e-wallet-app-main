@@ -58,16 +58,43 @@ export function createCryptoTopupService({
     return querySnap.docs[0];
   }
 
-  async function processIncomingCryptoPayment(amount, signature) {
+  async function findPendingCryptoDeposit({
+    amountMicros,
+    senderWalletAddress,
+  }) {
+    const normalizedSenderWalletAddress = (senderWalletAddress || '').toString().trim();
+
+    if (normalizedSenderWalletAddress) {
+      const senderQuery = await db
+        .collection('crypto_pending_topups')
+        .where('status', '==', 'pending')
+        .where('expectedAmountMicros', '==', amountMicros)
+        .where('senderWalletAddress', '==', normalizedSenderWalletAddress)
+        .limit(1)
+        .get();
+
+      if (!senderQuery.empty) {
+        return senderQuery.docs[0];
+      }
+    }
+
+    return findPendingCryptoDepositByMicros(amountMicros);
+  }
+
+  async function processIncomingCryptoPayment(amount, signature, details = {}) {
     const amountMicros = Math.round(Number(amount) * 1000000);
     if (!Number.isFinite(amountMicros) || amountMicros <= 0) {
       return;
     }
 
-    const pendingDoc = await findPendingCryptoDepositByMicros(amountMicros);
+    const senderWalletAddress = (details.senderWalletAddress || '').toString().trim();
+    const pendingDoc = await findPendingCryptoDeposit({
+      amountMicros,
+      senderWalletAddress,
+    });
     if (!pendingDoc) {
       console.log(
-        `[Crypto Top-up] No pending deposit matched ${amount} USDC for signature ${signature}`,
+        `[Crypto Top-up] No pending deposit matched ${amount} USDC for signature ${signature} from ${senderWalletAddress || 'unknown sender'}`,
       );
       return;
     }
@@ -109,6 +136,7 @@ export function createCryptoTopupService({
         tokenSymbol: pending.tokenSymbol || 'USDC',
         blockchain: 'solana',
         signature,
+        senderWalletAddress: senderWalletAddress || pending.senderWalletAddress || '',
         cryptoAmountReceived: Number(amount),
         usdRateAtCredit: usdRate,
         usdGrossAmount,
@@ -122,6 +150,8 @@ export function createCryptoTopupService({
         creditedAt: admin.firestore.FieldValue.serverTimestamp(),
         signature,
         processedReference: reference,
+        matchedSenderWalletAddress:
+          senderWalletAddress || pending.senderWalletAddress || '',
         actualCryptoAmountReceived: Number(amount),
         usdRateAtCredit: usdRate,
         creditedGrossUsdAmount: usdTotals.grossAmount,
@@ -130,11 +160,29 @@ export function createCryptoTopupService({
       },
       { merge: true },
     );
+
+    if (pending.pendingHistoryId) {
+      await db.collection('history').doc(pending.pendingHistoryId).set({
+        status: result.credited ? 'completed' : 'credited',
+        amount: usdTotals.netAmount,
+        grossAmount: usdTotals.grossAmount,
+        feeAmount: usdTotals.feeAmount,
+        signature,
+        senderWalletAddress:
+          senderWalletAddress || pending.senderWalletAddress || '',
+        Time: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
   }
 
-  async function createTopup({ amount, email, walletId }) {
+  async function createTopup({ amount, email, walletId, senderWalletAddress }) {
     if (!solanaWalletAddress) {
       throw new Error('Crypto wallet is not configured');
+    }
+
+    const normalizedSenderWalletAddress = (senderWalletAddress || '').toString().trim();
+    if (!normalizedSenderWalletAddress) {
+      throw new Error('Sender wallet address is required');
     }
 
     const exact = generateCryptoExactAmount(amount);
@@ -144,13 +192,18 @@ export function createCryptoTopupService({
     );
     const target = await findUserWalletTarget({ email, walletId });
     const depositRef = db.collection('crypto_pending_topups').doc();
+    const historyRef = db.collection('history').doc();
+    const targetSnap = await target.userRef.get();
+    const targetData = targetSnap.data() || {};
 
     await depositRef.set({
       depositId: depositRef.id,
       email,
       walletId,
+      senderWalletAddress: normalizedSenderWalletAddress,
       userDocId: target.userDocId,
       userLookup: target.matchedBy,
+      pendingHistoryId: historyRef.id,
       requestedAmount: amount,
       requestedAmountMicros: Math.round(amount * 1000000),
       expectedAmount: totals.grossAmount,
@@ -168,8 +221,29 @@ export function createCryptoTopupService({
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
+    await historyRef.set({
+      Sender: 'Pending Crypto Deposit',
+      Receiver: (targetData['Full Name'] || email).toString(),
+      'Receiver Email': (targetData['Email'] || email).toString(),
+      'Sender Email': 'crypto@pending',
+      'Sender Wallet ID': normalizedSenderWalletAddress,
+      senderWalletAddress: normalizedSenderWalletAddress,
+      'Receiver Wallet ID': (targetData['WalletId'] || walletId || '').toString(),
+      receiverWalletId: (targetData['WalletId'] || walletId || '').toString(),
+      type: 'topup',
+      status: 'pending',
+      Time: admin.firestore.FieldValue.serverTimestamp(),
+      amount: 0,
+      requestedAmount: amount,
+      expectedAmount: totals.grossAmount,
+      feeAmount: totals.feeAmount,
+      reference: depositRef.id,
+      source: 'solana_usdc_pending',
+    });
+
     return {
       depositId: depositRef.id,
+      senderWalletAddress: normalizedSenderWalletAddress,
       depositWalletAddress: solanaWalletAddress,
       tokenMint: USDC_MINT_ADDRESS,
       tokenSymbol: 'USDC',
@@ -205,6 +279,7 @@ export function createCryptoTopupService({
       amountToSend: data.expectedAmount || 0,
       netAmount: data.netAmount || 0,
       feeAmount: data.feeAmount || 0,
+      senderWalletAddress: data.senderWalletAddress || '',
       depositWalletAddress: data.depositWalletAddress || '',
       tokenMint: data.tokenMint || USDC_MINT_ADDRESS,
       tokenSymbol: data.tokenSymbol || 'USDC',
@@ -228,9 +303,9 @@ export function createCryptoTopupService({
     return createUsdcMonitor({
       walletAddress: solanaWalletAddress,
       rpcUrl: solanaRpcUrl,
-      onIncomingPayment: async (amount, signature) => {
+      onIncomingPayment: async (amount, signature, details) => {
         try {
-          await processIncomingCryptoPayment(amount, signature);
+          await processIncomingCryptoPayment(amount, signature, details);
         } catch (error) {
           console.error('[Crypto Top-up] Failed to process incoming payment:', error);
         }

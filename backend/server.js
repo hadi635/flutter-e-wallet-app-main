@@ -84,6 +84,7 @@ const createCryptoTopupSchema = Joi.object({
   amount: Joi.number().positive().required(),
   email: Joi.string().email().required(),
   walletId: Joi.string().optional(),
+  senderWalletAddress: Joi.string().required(),
 });
 
 const confirmCryptoTopupSchema = Joi.object({
@@ -530,6 +531,8 @@ app.post(
       const amount = Number(req.body?.amount || 0);
       const email = (req.body?.email || '').toString().trim();
       const walletId = (req.body?.walletId || '').toString().trim();
+      const senderWalletAddress =
+        (req.body?.senderWalletAddress || '').toString().trim();
 
       if (!Number.isFinite(amount) || amount <= 0) {
         return res.status(400).json({ error: 'Invalid amount' });
@@ -539,6 +542,7 @@ app.post(
         amount,
         email,
         walletId,
+        senderWalletAddress,
       });
 
       return res.json(result);

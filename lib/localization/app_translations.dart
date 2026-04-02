@@ -142,6 +142,13 @@ class AppTranslations extends Translations {
         'Crypto cash out setup is still pending.',
     'missing_crypto_deposit': 'Missing crypto deposit request.',
     'crypto_send_exact_title': 'Send the exact crypto amount',
+    'crypto_request_intro':
+        'Enter the wallet you will send from. We use that wallet plus the exact amount to match your pending deposit safely.',
+    'crypto_request_note':
+        'After you create the request, copy our wallet address and the exact USDC amount. Send only from the wallet you entered here.',
+    'create_crypto_request': 'Create Crypto Request',
+    'sender_wallet_required': 'Your sending wallet address is required.',
+    'your_sending_wallet': 'Your sending wallet',
     'crypto_wallet_address': 'Deposit wallet',
     'crypto_amount_to_send': 'Exact amount to send',
     'crypto_you_receive': 'Wallet credit after fee',
@@ -150,6 +157,12 @@ class AppTranslations extends Translations {
     'crypto_send_exact_body':
         'Send exactly this USDC amount on Solana to the wallet above. After the transfer is confirmed on-chain, tap the button below to refresh and the app will credit your wallet balance automatically.',
     'i_sent_crypto': 'I sent the crypto',
+    'crypto_dialog_steps':
+        '1. Copy our wallet address.\n2. Copy the exact USDC amount.\n3. Send from the wallet you entered.\n4. Leave the request pending until the transfer is detected and your wallet is credited automatically.',
+    'copy_wallet_address': 'Copy Wallet Address',
+    'wallet_address_copied': 'Wallet address copied.',
+    'copy_crypto_amount': 'Copy Crypto Amount',
+    'crypto_amount_copied': 'Crypto amount copied.',
     'payment_auto_checking': 'Payment opened. The app is checking status automatically.',
     'payment_waiting_credit': 'Waiting for Stripe payment confirmation and wallet credit.',
     'crypto_waiting_credit': 'Waiting for Solana payment confirmation and automatic wallet credit.',

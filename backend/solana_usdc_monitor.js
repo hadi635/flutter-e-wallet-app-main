@@ -69,6 +69,7 @@ async function findMatchingIncomingSignature({
   previousBalance,
   nextBalance,
   mintAddress,
+  monitoredWalletAddress,
 }) {
   const signatures = await connection.getSignaturesForAddress(ataAddress, {
     limit: 10,
@@ -107,12 +108,25 @@ async function findMatchingIncomingSignature({
     const isIncoming = postAmount > preAmount;
 
     if (matchesCurrentWindow && isIncoming) {
-      return item.signature;
+      const senderWalletAddress = tx.meta.preTokenBalances?.find(
+        (entry) =>
+          entry.mint === mintAddress &&
+          entry.owner &&
+          entry.owner !== monitoredWalletAddress,
+      )?.owner;
+
+      return {
+        signature: item.signature,
+        senderWalletAddress: senderWalletAddress || '',
+      };
     }
   }
 
   const fallback = signatures.find((item) => item.signature && !item.err);
-  return fallback?.signature ?? 'unknown';
+  return {
+    signature: fallback?.signature ?? 'unknown',
+    senderWalletAddress: '',
+  };
 }
 
 export class SolanaUsdcMonitor {
@@ -247,13 +261,15 @@ export class SolanaUsdcMonitor {
       const receivedAmount = Number(
         (nextBalance - this.lastKnownBalance).toFixed(6),
       );
-      const signature = await findMatchingIncomingSignature({
+      const payment = await findMatchingIncomingSignature({
         connection: this.connection,
         ataAddress: this.ataAddress,
         previousBalance: this.lastKnownBalance,
         nextBalance,
         mintAddress: this.mintAddress,
+        monitoredWalletAddress: this.walletAddress,
       });
+      const signature = payment.signature;
 
       if (signature === this.lastSeenSignature) {
         this.lastKnownBalance = nextBalance;
@@ -266,7 +282,9 @@ export class SolanaUsdcMonitor {
       console.log(`[USDC Monitor] Incoming payment detected: ${receivedAmount} USDC`);
       console.log(`[USDC Monitor] Transaction signature: ${signature}`);
 
-      await this.onIncomingPayment(receivedAmount, signature);
+      await this.onIncomingPayment(receivedAmount, signature, {
+        senderWalletAddress: payment.senderWalletAddress,
+      });
     } catch (error) {
       console.error('[USDC Monitor] Failed to process account change:', error);
     }

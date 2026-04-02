@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class CryptoTopupSession {
   final String depositId;
+  final String senderWalletAddress;
   final String depositWalletAddress;
   final String tokenMint;
   final String tokenSymbol;
@@ -19,6 +20,7 @@ class CryptoTopupSession {
 
   const CryptoTopupSession({
     required this.depositId,
+    required this.senderWalletAddress,
     required this.depositWalletAddress,
     required this.tokenMint,
     required this.tokenSymbol,
@@ -38,6 +40,7 @@ class CryptoTopupResult {
   final String status;
   final String message;
   final String signature;
+  final String senderWalletAddress;
 
   const CryptoTopupResult({
     required this.success,
@@ -45,6 +48,7 @@ class CryptoTopupResult {
     required this.status,
     required this.message,
     required this.signature,
+    required this.senderWalletAddress,
   });
 }
 
@@ -57,6 +61,7 @@ class CryptoTopupService {
     await prefs.setString(_pendingDepositIdKey, session.depositId);
     await prefs.setString(_pendingDepositJsonKey, jsonEncode({
       'depositId': session.depositId,
+      'senderWalletAddress': session.senderWalletAddress,
       'depositWalletAddress': session.depositWalletAddress,
       'tokenMint': session.tokenMint,
       'tokenSymbol': session.tokenSymbol,
@@ -86,6 +91,7 @@ class CryptoTopupService {
       final data = jsonDecode(raw) as Map<String, dynamic>;
       return CryptoTopupSession(
         depositId: data['depositId']?.toString() ?? '',
+        senderWalletAddress: data['senderWalletAddress']?.toString() ?? '',
         depositWalletAddress: data['depositWalletAddress']?.toString() ?? '',
         tokenMint: data['tokenMint']?.toString() ?? '',
         tokenSymbol: data['tokenSymbol']?.toString() ?? 'USDC',
@@ -112,6 +118,7 @@ class CryptoTopupService {
   Future<CryptoTopupSession> createCryptoTopup({
     required double amount,
     required String email,
+    required String senderWalletAddress,
     String? walletId,
   }) async {
     final uri = ApiService.uri('/create-crypto-topup');
@@ -126,6 +133,7 @@ class CryptoTopupService {
         'amount': amount,
         'email': email,
         'walletId': walletId,
+        'senderWalletAddress': senderWalletAddress,
       }),
     );
 
@@ -142,6 +150,7 @@ class CryptoTopupService {
 
     return CryptoTopupSession(
       depositId: data['depositId']?.toString() ?? '',
+      senderWalletAddress: data['senderWalletAddress']?.toString() ?? '',
       depositWalletAddress: data['depositWalletAddress']?.toString() ?? '',
       tokenMint: data['tokenMint']?.toString() ?? '',
       tokenSymbol: data['tokenSymbol']?.toString() ?? 'USDC',
@@ -188,6 +197,7 @@ class CryptoTopupService {
       status: data['status']?.toString() ?? 'pending',
       message: data['message']?.toString() ?? 'Crypto top-up status received',
       signature: data['signature']?.toString() ?? '',
+      senderWalletAddress: data['senderWalletAddress']?.toString() ?? '',
     );
   }
 }

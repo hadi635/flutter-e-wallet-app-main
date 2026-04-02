@@ -13,6 +13,7 @@ import 'package:ewallet/utils/money_formatter.dart';
 import 'package:ewallet/utils/wallet_support.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -235,10 +236,105 @@ class _AddMoneyViewState extends State<AddMoneyView> {
 
   Future<void> _startCryptoTopup() async {
     setState(() => _selectedMethod = _cryptoMethod);
-    if (_cryptoSession != null) {
-      return;
-    }
+    await _openCryptoRequestDialog();
+  }
 
+  Future<void> _copyText(String value, String message) async {
+    await Clipboard.setData(ClipboardData(text: value));
+    Get.snackbar('success'.tr, message);
+  }
+
+  Future<void> _showCryptoInstructionsDialog(CryptoTopupSession session) async {
+    await Get.dialog(
+      AlertDialog(
+        backgroundColor: Appcolor.background,
+        title: Text(
+          'crypto_send_exact_title'.tr,
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'crypto_dialog_steps'.tr,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  '${'crypto_wallet_address'.tr}:',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                SelectableText(
+                  session.depositWalletAddress,
+                  style: const TextStyle(color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+                CustomButton(
+                  title: 'copy_wallet_address'.tr,
+                  bgColor: Appcolor.secondary,
+                  ontap: () => _copyText(
+                    session.depositWalletAddress,
+                    'wallet_address_copied'.tr,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  '${'crypto_amount_to_send'.tr}:',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                SelectableText(
+                  '${MoneyFormatter.fixed6(session.amountToSend)} ${session.tokenSymbol}',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+                CustomButton(
+                  title: 'copy_crypto_amount'.tr,
+                  bgColor: Appcolor.secondary,
+                  ontap: () => _copyText(
+                    MoneyFormatter.fixed6(session.amountToSend),
+                    'crypto_amount_copied'.tr,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  '${'your_sending_wallet'.tr}: ${session.senderWalletAddress}',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${'crypto_you_receive'.tr}: ${MoneyFormatter.fixed2(session.netAmount)} USD',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text('close'.tr),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openCryptoRequestDialog() async {
     final amount = MoneyFormatter.parseAmount(_amountController.text);
     if (amount <= 0) {
       Get.snackbar('invalid_amount'.tr, 'enter_valid_amount'.tr);
@@ -252,28 +348,125 @@ class _AddMoneyViewState extends State<AddMoneyView> {
       return;
     }
 
-    setState(() => _isCryptoProcessing = true);
-    try {
-      final walletId = await _getOrCreateWalletId();
-      final session = await _cryptoTopupService.createCryptoTopup(
-        amount: amount,
-        email: email,
-        walletId: walletId,
-      );
-      await _cryptoTopupService.savePendingSession(session);
-      if (!mounted) return;
-      setState(() => _cryptoSession = session);
-      _startCryptoPolling();
-    } catch (e) {
-      Get.snackbar(
-        'topup_failed'.tr,
-        e.toString().replaceFirst('Exception: ', ''),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isCryptoProcessing = false);
-      }
-    }
+    final senderWalletController = TextEditingController(
+      text: _cryptoSession?.senderWalletAddress ?? '',
+    );
+
+    await Get.dialog(
+      Dialog(
+        backgroundColor: Colors.transparent,
+        child: GlassContainer(
+          padding: const EdgeInsets.all(18),
+          child: StatefulBuilder(
+            builder: (context, setDialogState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'crypto_method'.tr,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'crypto_request_intro'.tr,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  CustomField(
+                    title: 'your_sending_wallet'.tr,
+                    controller: senderWalletController,
+                    prefixIcon: Icons.account_balance_wallet_rounded,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '${'amount_to_add'.tr}: ${MoneyFormatter.fixed2(amount)} USD',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'crypto_request_note'.tr,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: _isCryptoProcessing ? null : () => Get.back(),
+                          child: Text('close'.tr),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: CustomButton(
+                          title: _isCryptoProcessing
+                              ? 'please_wait'.tr
+                              : 'create_crypto_request'.tr,
+                          bgColor: Appcolor.secondary,
+                          ontap: _isCryptoProcessing
+                              ? null
+                              : () async {
+                                  final senderWalletAddress =
+                                      senderWalletController.text.trim();
+                                  if (senderWalletAddress.isEmpty) {
+                                    Get.snackbar(
+                                      'error'.tr,
+                                      'sender_wallet_required'.tr,
+                                    );
+                                    return;
+                                  }
+
+                                  setDialogState(() {});
+                                  setState(() => _isCryptoProcessing = true);
+                                  try {
+                                    final walletId = await _getOrCreateWalletId();
+                                    final session =
+                                        await _cryptoTopupService.createCryptoTopup(
+                                      amount: amount,
+                                      email: email,
+                                      walletId: walletId,
+                                      senderWalletAddress: senderWalletAddress,
+                                    );
+                                    await _cryptoTopupService
+                                        .savePendingSession(session);
+                                    if (!mounted) return;
+                                    setState(() => _cryptoSession = session);
+                                    _startCryptoPolling();
+                                    Get.back();
+                                    await _showCryptoInstructionsDialog(session);
+                                  } catch (e) {
+                                    Get.snackbar(
+                                      'topup_failed'.tr,
+                                      e.toString().replaceFirst('Exception: ', ''),
+                                    );
+                                  } finally {
+                                    if (mounted) {
+                                      setState(() => _isCryptoProcessing = false);
+                                    }
+                                  }
+                                },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _confirmCryptoTopup({
@@ -522,6 +715,11 @@ class _AddMoneyViewState extends State<AddMoneyView> {
                         const SizedBox(height: 8),
                         SelectableText(
                           '${'crypto_wallet_address'.tr}: ${_cryptoSession!.depositWalletAddress}',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        const SizedBox(height: 6),
+                        SelectableText(
+                          '${'your_sending_wallet'.tr}: ${_cryptoSession!.senderWalletAddress}',
                           style: const TextStyle(color: Colors.white),
                         ),
                         const SizedBox(height: 6),
