@@ -1,4 +1,4 @@
-import 'package:ewallet/views/nav/nav_view.dart';
+import 'package:ewallet/main.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -42,7 +42,7 @@ class LoginService {
 
       if (cred.user != null) {
         _closeLoader(context);
-        Get.offAll(() => NavView());
+        Get.offAllNamed(AppRoutes.nav);
         Get.snackbar("congratulations".tr, "login_success".tr);
         return;
       }

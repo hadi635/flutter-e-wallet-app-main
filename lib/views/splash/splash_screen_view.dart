@@ -3,9 +3,8 @@ import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ewallet/globals/glass_container.dart';
+import 'package:ewallet/main.dart';
 import 'package:ewallet/utils/colors.dart';
-import 'package:ewallet/views/nav/nav_view.dart';
-import 'package:ewallet/views/welcomeView/welcome_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -41,11 +40,11 @@ class _SplashScreenViewState extends State<SplashScreenView> {
     super.initState();
     Timer(const Duration(seconds: 2), () async {
       if (user == null) {
-        Get.offAll(() => const WelcomeView());
+        Get.offAllNamed(AppRoutes.welcome);
         return;
       }
       await _ensureWalletId();
-      Get.offAll(() => NavView());
+      Get.offAllNamed(AppRoutes.nav);
     });
   }
 

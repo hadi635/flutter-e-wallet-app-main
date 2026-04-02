@@ -10,6 +10,7 @@ import 'package:ewallet/services/crypto_topup_service.dart';
 import 'package:ewallet/services/stripe_service.dart';
 import 'package:ewallet/utils/colors.dart';
 import 'package:ewallet/utils/money_formatter.dart';
+import 'package:ewallet/utils/web_url_state.dart';
 import 'package:ewallet/utils/wallet_support.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -54,7 +55,8 @@ class _AddMoneyViewState extends State<AddMoneyView> {
   }
 
   Future<void> _restorePendingSession() async {
-    final sessionId = Uri.base.queryParameters['session_id']?.trim() ?? '';
+    final sessionId =
+        resolveWebUrlState().queryParameters['session_id']?.trim() ?? '';
     if (sessionId.isNotEmpty) {
       await StripeService.savePendingSessionId(sessionId);
       if (mounted) {

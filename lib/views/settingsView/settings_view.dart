@@ -1,12 +1,12 @@
 import 'package:ewallet/globals/custom_appbar.dart';
 import 'package:ewallet/globals/glass_container.dart';
 import 'package:ewallet/localization/app_translations.dart';
+import 'package:ewallet/main.dart';
 import 'package:ewallet/utils/colors.dart';
 import 'package:ewallet/views/activityView/activity_view.dart';
 import 'package:ewallet/views/profileSetUpView/profile_setup_view.dart';
 import 'package:ewallet/views/settingsView/fees_view.dart';
 import 'package:ewallet/views/settingsView/support_chat_view.dart';
-import 'package:ewallet/views/welcomeView/welcome_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -222,7 +222,7 @@ class SettingsView extends StatelessWidget {
                   onPressed: () {
                     FirebaseAuth.instance.signOut();
                     Get.snackbar('success'.tr, 'logout_success'.tr);
-                    Get.offAll(() => const WelcomeView());
+                    Get.offAllNamed(AppRoutes.welcome);
                   },
                   icon: const Icon(Icons.logout_rounded),
                   label: Text('logout'.tr),

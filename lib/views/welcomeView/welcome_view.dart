@@ -1,8 +1,7 @@
 import 'package:ewallet/globals/custom_button.dart';
 import 'package:ewallet/globals/glass_container.dart';
+import 'package:ewallet/main.dart';
 import 'package:ewallet/utils/colors.dart';
-import 'package:ewallet/views/authView/login_view.dart';
-import 'package:ewallet/views/authView/sign_up_view.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -62,11 +61,11 @@ class WelcomeView extends StatelessWidget {
                     children: [
                       CustomButton(
                         title: 'create_new_account'.tr,
-                        ontap: () => Get.to(() => const SignUpView()),
+                        ontap: () => Get.toNamed(AppRoutes.signup),
                       ),
                       const SizedBox(height: 12),
                       TextButton(
-                        onPressed: () => Get.to(() => const LoginView()),
+                        onPressed: () => Get.toNamed(AppRoutes.login),
                         child: Text(
                           'already_have_account'.tr,
                           style: const TextStyle(

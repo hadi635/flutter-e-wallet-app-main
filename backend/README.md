@@ -87,3 +87,6 @@ Idempotency is enforced with `processed_topups/{sessionId}`.
 - Never put `sk_live...` in Flutter app files.
 - Keep it only in `backend/.env` on server.
 - If a secret key was leaked, rotate it immediately in Stripe dashboard.
+- Set `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL`, and `PUBLIC_BASE_URL` to `https://` URLs in production.
+- `POST /upload-profile-image` now requires a valid Firebase ID token.
+- The backend rejects disallowed browser origins and non-JSON API requests.

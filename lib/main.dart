@@ -1,4 +1,5 @@
 import 'package:ewallet/utils/colors.dart';
+import 'package:ewallet/utils/web_url_state.dart';
 import 'package:ewallet/localization/app_translations.dart';
 import 'package:ewallet/services/stripe_service.dart';
 import 'package:ewallet/views/Home/home.dart';
@@ -54,12 +55,7 @@ class MyApp extends StatelessWidget {
   String _initialRoute() {
     if (!kIsWeb) return AppRoutes.root;
 
-    var path = Uri.base.path.toLowerCase().trim();
-    if (path.isEmpty) return AppRoutes.root;
-    if (!path.startsWith('/')) path = '/$path';
-    if (path.length > 1 && path.endsWith('/')) {
-      path = path.substring(0, path.length - 1);
-    }
+    final path = resolveWebUrlState().path;
 
     if (path == AppRoutes.cancel) {
       return AppRoutes.reject;

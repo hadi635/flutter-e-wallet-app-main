@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:ewallet/views/nav/nav_view.dart';
+import 'package:ewallet/main.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
@@ -61,7 +61,7 @@ class SignUpService {
           "WalletId": _generateWalletId(),
         }, SetOptions(merge: true));
 
-        Get.offAll(() => NavView());
+        Get.offAllNamed(AppRoutes.nav);
         Get.snackbar("congratulations".tr, "signup_success".tr);
         return;
       }

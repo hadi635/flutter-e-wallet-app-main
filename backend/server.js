@@ -16,20 +16,38 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadDir = path.join(__dirname, 'uploads', 'profiles');
+const isProduction = process.env.NODE_ENV === 'production';
 
+app.disable('x-powered-by');
 app.set('trust proxy', 1);
 
 // === SECURITY ADDITIONS (minimal) ===
 // Helmet for security headers
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        baseUri: ["'self'"],
+        frameAncestors: ["'none'"],
+        formAction: ["'self'"],
+        objectSrc: ["'none'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+      },
     },
-  },
-}));
+    crossOriginEmbedderPolicy: false,
+    hsts: isProduction
+      ? {
+          maxAge: 31536000,
+          includeSubDomains: true,
+          preload: true,
+        }
+      : false,
+    referrerPolicy: { policy: 'no-referrer' },
+  }),
+);
 
 // Rate limiting
 const limiter = rateLimit({
@@ -38,9 +56,24 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 app.use('/create-checkout-session', limiter);
 app.use('/confirm-topup', limiter);
 app.use('/upload-profile-image', limiter);
+app.use('/create-crypto-topup', authLimiter);
+app.use('/confirm-crypto-topup', authLimiter);
+app.use('/upload-profile-image', uploadLimiter);
 
 // Strict CORS
 const allowedOrigins = new Set(
@@ -65,8 +98,86 @@ app.use(
       callback(new Error(`CORS blocked for origin: ${origin}`));
     },
     credentials: true,
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'Stripe-Signature'],
+    optionsSuccessStatus: 204,
   }),
 );
+
+function requireAllowedOrigin(req, res, next) {
+  const origin = req.headers.origin;
+  if (!origin || allowedOrigins.has(origin)) {
+    next();
+    return;
+  }
+  res.status(403).json({ error: 'Origin not allowed' });
+}
+
+function requireJsonBody(req, res, next) {
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    next();
+    return;
+  }
+  if (!req.is('application/json')) {
+    res.status(415).json({ error: 'Content-Type must be application/json' });
+    return;
+  }
+  next();
+}
+
+function validateConfiguredUrl(value, { allowHttpLocalhost = false } = {}) {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch (_error) {
+    throw new Error(`Invalid URL: ${value}`);
+  }
+
+  if (allowHttpLocalhost && parsed.protocol === 'http:' && parsed.hostname === 'localhost') {
+    return parsed.toString().replace(/\/+$/, '');
+  }
+
+  if (parsed.protocol !== 'https:') {
+    throw new Error(`URL must use https: ${value}`);
+  }
+
+  return parsed.toString().replace(/\/+$/, '');
+}
+
+function detectImageType(buffer) {
+  if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return 'image/png';
+  }
+
+  if (
+    buffer.length >= 3 &&
+    buffer[0] === 0xff &&
+    buffer[1] === 0xd8 &&
+    buffer[2] === 0xff
+  ) {
+    return 'image/jpeg';
+  }
+
+  if (
+    buffer.length >= 12 &&
+    buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+
+  return null;
+}
 
 // Auth middleware (verify Firebase ID token)
 async function authMiddleware(req, res, next) {
@@ -78,26 +189,6 @@ async function authMiddleware(req, res, next) {
     next();
   } catch (err) {
     res.status(401).json({ error: 'Invalid token' });
-  }
-}
-
-async function optionalAuthMiddleware(req, _res, next) {
-  try {
-    const idToken =
-      req.headers.authorization?.replace('Bearer ', '') ||
-      req.headers['x-access-token'];
-    if (!idToken) {
-      req.user = null;
-      next();
-      return;
-    }
-
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    req.user = decodedToken;
-    next();
-  } catch (_err) {
-    req.user = null;
-    next();
   }
 }
 
@@ -120,7 +211,7 @@ async function ownWalletCheck(req, res, next) {
 
 // Joi schemas
 const createSessionSchema = Joi.object({
-  amount: Joi.number().positive().required(),
+  amount: Joi.number().positive().max(10000).required(),
   currency: Joi.string().valid('usd').default('usd'),
   email: Joi.string().email().required(),
   walletId: Joi.string().optional(),
@@ -131,7 +222,7 @@ const confirmSchema = Joi.object({
 });
 
 const createCryptoTopupSchema = Joi.object({
-  amount: Joi.number().positive().required(),
+  amount: Joi.number().positive().max(10000).required(),
   email: Joi.string().email().required(),
   walletId: Joi.string().optional(),
   senderWalletAddress: Joi.string().required(),
@@ -148,28 +239,49 @@ const uploadProfileImageSchema = Joi.object({
     .required(),
   imageData: Joi.string().base64().required(),
 });
+const jsonParser = express.json({ limit: '8mb' });
 
 // Original code (unchanged structure)
-app.use(express.json({ limit: '8mb' }));
+app.use((req, res, next) => {
+  if (req.path === '/stripe-webhook') {
+    next();
+    return;
+  }
+  jsonParser(req, res, next);
+});
+app.use(requireAllowedOrigin);
+app.use(requireJsonBody);
 app.use(
   '/uploads',
   express.static(path.join(__dirname, 'uploads'), {
     fallthrough: false,
     maxAge: '1d',
+    setHeaders(res) {
+      res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader(
+        'Content-Security-Policy',
+        "default-src 'none'; img-src 'self' data: https:;",
+      );
+    },
   }),
 );
 
 const port = Number(process.env.PORT || 4242);
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
-const successUrl =
-  process.env.STRIPE_SUCCESS_URL || 'http://localhost:3000/success';
-const cancelUrl = process.env.STRIPE_CANCEL_URL || 'http://localhost:3000/cancel';
-const publicBaseUrl =
-  (process.env.PUBLIC_BASE_URL || 'https://www.infinity-sharing.money/api').replace(
-    /\/+$/,
-    '',
-  );
+const successUrl = validateConfiguredUrl(
+  process.env.STRIPE_SUCCESS_URL || 'http://localhost:3000/success',
+  { allowHttpLocalhost: true },
+);
+const cancelUrl = validateConfiguredUrl(
+  process.env.STRIPE_CANCEL_URL || 'http://localhost:3000/cancel',
+  { allowHttpLocalhost: true },
+);
+const publicBaseUrl = validateConfiguredUrl(
+  process.env.PUBLIC_BASE_URL || 'https://www.infinity-sharing.money/api',
+  { allowHttpLocalhost: true },
+);
 const configuredTopupFeePercentage = Number(process.env.TOPUP_FEE_PERCENT || 5.5);
 const topupFeePercentage = Number.isFinite(configuredTopupFeePercentage)
   ? configuredTopupFeePercentage
@@ -590,7 +702,7 @@ app.post('/confirm-topup', authMiddleware, ownWalletCheck, async (req, res) => {
 
 app.post(
   '/upload-profile-image',
-  optionalAuthMiddleware,
+  authMiddleware,
   async (req, res) => {
     try {
       const { error } = uploadProfileImageSchema.validate(req.body);
@@ -602,8 +714,13 @@ app.post(
       const contentType = req.body.contentType.toString().trim();
       const imageBuffer = Buffer.from(req.body.imageData, 'base64');
 
-      if (!imageBuffer.length || imageBuffer.length > 5 * 1024 * 1024) {
+      if (!imageBuffer.length || imageBuffer.length > 2 * 1024 * 1024) {
         return res.status(400).json({ error: 'Invalid image size' });
+      }
+
+      const detectedContentType = detectImageType(imageBuffer);
+      if (!detectedContentType || detectedContentType !== contentType) {
+        return res.status(400).json({ error: 'Invalid image content' });
       }
 
       const extension =
@@ -625,7 +742,7 @@ app.post(
         `${safeOwner}_${Date.now()}_${crypto.randomUUID()}_${safeName}.${extension}`;
       const finalPath = path.join(uploadDir, finalName);
 
-      await fs.writeFile(finalPath, imageBuffer);
+      await fs.writeFile(finalPath, imageBuffer, { mode: 0o600 });
 
       const imageUrl = `${publicBaseUrl}/uploads/profiles/${finalName}`;
       return res.json({

@@ -2,6 +2,7 @@ import 'package:ewallet/globals/custom_button.dart';
 import 'package:ewallet/globals/glass_container.dart';
 import 'package:ewallet/services/stripe_service.dart';
 import 'package:ewallet/utils/colors.dart';
+import 'package:ewallet/utils/web_url_state.dart';
 import 'package:ewallet/views/splash/splash_screen_view.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -33,7 +34,8 @@ class _PaymentResultViewState extends State<PaymentResultView> {
       return;
     }
 
-    final querySessionId = Uri.base.queryParameters['session_id']?.trim() ?? '';
+    final querySessionId =
+        resolveWebUrlState().queryParameters['session_id']?.trim() ?? '';
     final sessionId = querySessionId.isNotEmpty
         ? querySessionId
         : (await StripeService.getPendingSessionId() ?? '');

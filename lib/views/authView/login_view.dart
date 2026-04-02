@@ -1,9 +1,9 @@
 import 'package:ewallet/globals/custom_button.dart';
 import 'package:ewallet/globals/custom_field.dart';
 import 'package:ewallet/globals/glass_container.dart';
+import 'package:ewallet/main.dart';
 import 'package:ewallet/services/login_service.dart';
 import 'package:ewallet/utils/colors.dart';
-import 'package:ewallet/views/authView/sign_up_view.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -145,7 +145,7 @@ class _LoginViewState extends State<LoginView> {
                   ),
                   const SizedBox(height: 8),
                   TextButton(
-                    onPressed: () => Get.to(() => const SignUpView()),
+                    onPressed: () => Get.toNamed(AppRoutes.signup),
                     child: Text(
                       "create_account".tr,
                       style: TextStyle(
