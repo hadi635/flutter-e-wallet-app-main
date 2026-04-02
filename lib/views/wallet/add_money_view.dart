@@ -23,6 +23,9 @@ class AddMoneyView extends StatefulWidget {
 }
 
 class _AddMoneyViewState extends State<AddMoneyView> {
+  static const String _cardMethod = 'card';
+  static const String _cryptoMethod = 'crypto';
+
   final TextEditingController _amountController = TextEditingController();
   final StripeService _stripeService = StripeService();
   final CryptoTopupService _cryptoTopupService = CryptoTopupService();
@@ -30,6 +33,7 @@ class _AddMoneyViewState extends State<AddMoneyView> {
   String? _pendingSessionId;
   bool _isCryptoProcessing = false;
   CryptoTopupSession? _cryptoSession;
+  String? _selectedMethod;
 
   @override
   void initState() {
@@ -48,7 +52,10 @@ class _AddMoneyViewState extends State<AddMoneyView> {
     if (sessionId.isNotEmpty) {
       await StripeService.savePendingSessionId(sessionId);
       if (mounted) {
-        setState(() => _pendingSessionId = sessionId);
+        setState(() {
+          _pendingSessionId = sessionId;
+          _selectedMethod = _cardMethod;
+        });
       }
       return;
     }
@@ -133,6 +140,14 @@ class _AddMoneyViewState extends State<AddMoneyView> {
     }
   }
 
+  Future<void> _handleCardMethodTap() async {
+    setState(() => _selectedMethod = _cardMethod);
+    if (_pendingSessionId != null && _pendingSessionId!.isNotEmpty) {
+      return;
+    }
+    await _openStripePaymentLink();
+  }
+
   Future<void> _confirmTopUp() async {
     final sessionId = _pendingSessionId;
     if (sessionId == null || sessionId.isEmpty) {
@@ -170,6 +185,11 @@ class _AddMoneyViewState extends State<AddMoneyView> {
   }
 
   Future<void> _startCryptoTopup() async {
+    setState(() => _selectedMethod = _cryptoMethod);
+    if (_cryptoSession != null) {
+      return;
+    }
+
     final amount = MoneyFormatter.parseAmount(_amountController.text);
     if (amount <= 0) {
       Get.snackbar('invalid_amount'.tr, 'enter_valid_amount'.tr);
@@ -373,9 +393,11 @@ class _AddMoneyViewState extends State<AddMoneyView> {
                   subtitle: 'card_method_subtitle'.tr,
                   fee: '5.5% + \$0.30',
                   speed: 'instant'.tr,
-                  onTap: _isProcessing ? () {} : _openStripePaymentLink,
+                  onTap: _isProcessing ? () {} : _handleCardMethodTap,
                 ),
-                if (StripeService.hasBackend && _pendingSessionId != null) ...[
+                if (_selectedMethod == _cardMethod &&
+                    StripeService.hasBackend &&
+                    _pendingSessionId != null) ...[
                   const SizedBox(height: 12),
                   GlassContainer(
                     padding: const EdgeInsets.all(14),
@@ -416,7 +438,8 @@ class _AddMoneyViewState extends State<AddMoneyView> {
                   color: Appcolor.secondary,
                   onTap: _isCryptoProcessing ? () {} : _startCryptoTopup,
                 ),
-                if (_cryptoSession != null) ...[
+                if (_selectedMethod == _cryptoMethod &&
+                    _cryptoSession != null) ...[
                   const SizedBox(height: 12),
                   GlassContainer(
                     padding: const EdgeInsets.all(14),
@@ -444,6 +467,11 @@ class _AddMoneyViewState extends State<AddMoneyView> {
                         const SizedBox(height: 6),
                         SelectableText(
                           '${'crypto_you_receive'.tr}: ${MoneyFormatter.fixed2(_cryptoSession!.netAmount)} USD',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        const SizedBox(height: 6),
+                        SelectableText(
+                          '${'crypto_rate_applied'.tr}: ${MoneyFormatter.fixed2(_cryptoSession!.usdRate)}',
                           style: const TextStyle(color: Colors.white),
                         ),
                         const SizedBox(height: 6),

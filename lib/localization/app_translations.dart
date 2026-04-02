@@ -146,6 +146,7 @@ class AppTranslations extends Translations {
     'crypto_wallet_address': 'Deposit wallet',
     'crypto_amount_to_send': 'Exact amount to send',
     'crypto_you_receive': 'Wallet credit after fee',
+    'crypto_rate_applied': 'USD rate applied now',
     'crypto_network': 'Network',
     'crypto_send_exact_body':
         'Send exactly this USDC amount on Solana to the wallet above. After the transfer is confirmed on-chain, tap the button below to refresh and the app will credit your wallet balance automatically.',

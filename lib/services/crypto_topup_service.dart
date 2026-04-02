@@ -14,6 +14,7 @@ class CryptoTopupSession {
   final double requestedAmount;
   final double feeAmount;
   final double netAmount;
+  final double usdRate;
   final String status;
 
   const CryptoTopupSession({
@@ -26,6 +27,7 @@ class CryptoTopupSession {
     required this.requestedAmount,
     required this.feeAmount,
     required this.netAmount,
+    required this.usdRate,
     required this.status,
   });
 }
@@ -63,6 +65,7 @@ class CryptoTopupService {
       'requestedAmount': session.requestedAmount,
       'feeAmount': session.feeAmount,
       'netAmount': session.netAmount,
+      'usdRate': session.usdRate,
       'status': session.status,
     }));
   }
@@ -91,6 +94,7 @@ class CryptoTopupService {
         requestedAmount: (data['requestedAmount'] as num?)?.toDouble() ?? 0,
         feeAmount: (data['feeAmount'] as num?)?.toDouble() ?? 0,
         netAmount: (data['netAmount'] as num?)?.toDouble() ?? 0,
+        usdRate: (data['usdRate'] as num?)?.toDouble() ?? 1,
         status: data['status']?.toString() ?? 'pending',
       );
     } catch (_) {
@@ -146,6 +150,7 @@ class CryptoTopupService {
       requestedAmount: (data['requestedAmount'] as num?)?.toDouble() ?? 0,
       feeAmount: (data['feeAmount'] as num?)?.toDouble() ?? 0,
       netAmount: (data['netAmount'] as num?)?.toDouble() ?? 0,
+      usdRate: (data['estimatedUsdRate'] as num?)?.toDouble() ?? 1,
       status: data['status']?.toString() ?? 'pending',
     );
   }

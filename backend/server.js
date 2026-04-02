@@ -246,6 +246,22 @@ function calculateCryptoTopupAmounts(grossAmount) {
   };
 }
 
+function resolveCryptoUsdRate({
+  tokenSymbol,
+  tokenMint,
+}) {
+  const normalizedSymbol = (tokenSymbol || '').toString().trim().toUpperCase();
+  const normalizedMint = (tokenMint || '').toString().trim();
+
+  // Current crypto add-money is Solana USDC, so 1 USDC = 1 USD at credit time.
+  // This helper keeps the rate conversion isolated for future non-stable assets.
+  if (normalizedSymbol === 'USDC' || normalizedMint === USDC_MINT_ADDRESS) {
+    return 1;
+  }
+
+  return 1;
+}
+
 function generateCryptoExactAmount(amount) {
   const toMicros = (value) => Math.round(Number(value) * 1000000);
   const baseMicros = toMicros(amount);
@@ -419,15 +435,22 @@ async function processIncomingCryptoPayment(amount, signature) {
     return;
   }
 
+  const usdRate = resolveCryptoUsdRate({
+    tokenSymbol: pending.tokenSymbol,
+    tokenMint: pending.tokenMint,
+  });
+  const usdGrossAmount = Number((Number(amount) * usdRate).toFixed(6));
+  const usdTotals = calculateCryptoTopupAmounts(usdGrossAmount);
+
   const reference = `solana_${signature}`;
   const result = await creditWalletOnce({
     sessionId: reference,
     email: pending.email || '',
     walletId: pending.walletId || '',
-    grossAmount: Number(pending.expectedAmount || amount),
-    feeAmount: Number(pending.feeAmount || 0),
-    netAmount: Number(pending.netAmount || amount),
-    feePercentage: Number(pending.feePercentage || cryptoTopupFeePercentage),
+    grossAmount: usdTotals.grossAmount,
+    feeAmount: usdTotals.feeAmount,
+    netAmount: usdTotals.netAmount,
+    feePercentage: cryptoTopupFeePercentage,
     feeFixed: 0,
     source: 'solana_usdc',
     senderLabel: 'Solana USDC',
@@ -435,8 +458,12 @@ async function processIncomingCryptoPayment(amount, signature) {
     senderWalletId: 'SOLANA-USDC',
     meta: {
       tokenMint: USDC_MINT_ADDRESS,
+      tokenSymbol: pending.tokenSymbol || 'USDC',
       blockchain: 'solana',
       signature,
+      cryptoAmountReceived: Number(amount),
+      usdRateAtCredit: usdRate,
+      usdGrossAmount,
     },
   });
 
@@ -447,6 +474,11 @@ async function processIncomingCryptoPayment(amount, signature) {
       creditedAt: admin.firestore.FieldValue.serverTimestamp(),
       signature,
       processedReference: reference,
+      actualCryptoAmountReceived: Number(amount),
+      usdRateAtCredit: usdRate,
+      creditedGrossUsdAmount: usdTotals.grossAmount,
+      creditedFeeUsdAmount: usdTotals.feeAmount,
+      creditedNetUsdAmount: usdTotals.netAmount,
     },
     { merge: true },
   );
@@ -521,7 +553,7 @@ app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (re
 });
 
 // Protected endpoints
-app.post('/create-checkout-session', authMiddleware, ownWalletCheck, createSessionSchema, async (req, res) => {
+app.post('/create-checkout-session', authMiddleware, ownWalletCheck, async (req, res) => {
   try {
     const { error } = createSessionSchema.validate(req.body);
     if (error) return res.status(400).json({ error: error.details[0].message });
@@ -573,7 +605,7 @@ app.post('/create-checkout-session', authMiddleware, ownWalletCheck, createSessi
   }
 });
 
-app.post('/confirm-topup', authMiddleware, ownWalletCheck, confirmSchema, async (req, res) => {
+app.post('/confirm-topup', authMiddleware, ownWalletCheck, async (req, res) => {
   try {
     const { error } = confirmSchema.validate(req.body);
     if (error) return res.status(400).json({ error: error.details[0].message });
@@ -670,6 +702,7 @@ app.post(
         markerMicros: exact.markerMicros,
         feeAmount: totals.feeAmount,
         netAmount: totals.netAmount,
+        estimatedUsdRate: 1,
         feePercentage: cryptoTopupFeePercentage,
         status: 'pending',
         blockchain: 'solana',
