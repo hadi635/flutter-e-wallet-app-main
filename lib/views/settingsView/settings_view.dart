@@ -47,7 +47,7 @@ class SettingsView extends StatelessWidget {
       body: Container(
         decoration: const BoxDecoration(gradient: Appcolor.appGradient),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 120),
           child: Column(
             children: [
               GlassContainer(

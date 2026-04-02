@@ -42,8 +42,7 @@ class LoginService {
 
       if (cred.user != null) {
         _closeLoader(context);
-        //Navigate to NavView
-        Get.to(() => NavView());
+        Get.offAll(() => NavView());
         Get.snackbar("congratulations".tr, "login_success".tr);
         return;
       }
@@ -70,6 +69,21 @@ class LoginService {
     } catch (_) {
       _closeLoader(context);
       showAlert(title: 'error'.tr, text: "login_failed".tr, context: context);
+    }
+  }
+
+  Future<void> resetPassword(String email) async {
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email.trim());
+      Get.snackbar('success'.tr, 'reset_password_sent'.tr);
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        showAlert(title: 'error'.tr, text: "user_not_found_email".tr);
+        return;
+      }
+      showAlert(title: 'error'.tr, text: 'password_reset_failed'.tr);
+    } catch (_) {
+      showAlert(title: 'error'.tr, text: 'password_reset_failed'.tr);
     }
   }
 

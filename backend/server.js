@@ -6,9 +6,18 @@ import helmet from 'helmet';
 import Joi from 'joi';
 import admin from 'firebase-admin';
 import Stripe from 'stripe';
+import crypto from 'crypto';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { createCryptoTopupService } from './services/crypto_topup_service.js';
 
 const app = express();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadDir = path.join(__dirname, 'uploads', 'profiles');
+
+app.set('trust proxy', 1);
 
 // === SECURITY ADDITIONS (minimal) ===
 // Helmet for security headers
@@ -31,6 +40,7 @@ const limiter = rateLimit({
 });
 app.use('/create-checkout-session', limiter);
 app.use('/confirm-topup', limiter);
+app.use('/upload-profile-image', limiter);
 
 // Strict CORS
 app.use(cors({
@@ -91,9 +101,23 @@ const confirmCryptoTopupSchema = Joi.object({
   depositId: Joi.string().required(),
 });
 
+const uploadProfileImageSchema = Joi.object({
+  fileName: Joi.string().max(255).required(),
+  contentType: Joi.string()
+    .valid('image/jpeg', 'image/png', 'image/webp')
+    .required(),
+  imageData: Joi.string().base64().required(),
+});
+
 // Original code (unchanged structure)
-app.use(express.json());
-app.use(express.raw({ type: 'application/json' })); // for webhook before json
+app.use(express.json({ limit: '8mb' }));
+app.use(
+  '/uploads',
+  express.static(path.join(__dirname, 'uploads'), {
+    fallthrough: false,
+    maxAge: '1d',
+  }),
+);
 
 const port = Number(process.env.PORT || 4242);
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
@@ -365,6 +389,8 @@ const cryptoTopupService = createCryptoTopupService({
   findUserWalletTarget,
 });
 
+await fs.mkdir(uploadDir, { recursive: true });
+
 // Webhook (no auth, raw body first)
 app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   if (!stripeWebhookSecret) {
@@ -516,6 +542,53 @@ app.post('/confirm-topup', authMiddleware, ownWalletCheck, async (req, res) => {
     return res.status(500).json({ error: 'Unable to confirm top-up' });
   }
 });
+
+app.post(
+  '/upload-profile-image',
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const { error } = uploadProfileImageSchema.validate(req.body);
+      if (error) {
+        return res.status(400).json({ error: error.details[0].message });
+      }
+
+      const fileName = req.body.fileName.toString().trim();
+      const contentType = req.body.contentType.toString().trim();
+      const imageBuffer = Buffer.from(req.body.imageData, 'base64');
+
+      if (!imageBuffer.length || imageBuffer.length > 5 * 1024 * 1024) {
+        return res.status(400).json({ error: 'Invalid image size' });
+      }
+
+      const extension =
+        contentType === 'image/png'
+          ? 'png'
+          : contentType === 'image/webp'
+              ? 'webp'
+              : 'jpg';
+      const safeEmail = req.user.email.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const safeName = path
+        .basename(fileName)
+        .replace(/[^a-zA-Z0-9._-]/g, '_');
+      const finalName =
+        `${safeEmail}_${Date.now()}_${crypto.randomUUID()}_${safeName}.${extension}`;
+      const finalPath = path.join(uploadDir, finalName);
+
+      await fs.writeFile(finalPath, imageBuffer);
+
+      const imageUrl =
+        `${req.protocol}://${req.get('host')}/uploads/profiles/${finalName}`;
+      return res.json({
+        success: true,
+        imageUrl,
+      });
+    } catch (err) {
+      console.error('upload-profile-image error:', err);
+      return res.status(500).json({ error: 'Unable to upload image' });
+    }
+  },
+);
 
 app.post(
   '/create-crypto-topup',

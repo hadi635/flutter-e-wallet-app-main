@@ -1,13 +1,15 @@
 import 'dart:typed_data';
 
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:ewallet/services/profile_image_service.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ProfileSetupController extends GetxController {
+  final ProfileImageService _profileImageService = ProfileImageService();
   XFile? pickedImage;
   Uint8List? pickedImageBytes;
   RxString imageDownloadLnk = RxString("");
+  bool isUploading = false;
 
   void setExistingImage(String url) {
     imageDownloadLnk.value = url;
@@ -32,19 +34,25 @@ class ProfileSetupController extends GetxController {
 
       pickedImage = image;
       pickedImageBytes = await image.readAsBytes();
+      if (pickedImageBytes!.length > 5 * 1024 * 1024) {
+        Get.snackbar("error".tr, "image_too_large".tr);
+        return;
+      }
 
-      final storage = FirebaseStorage.instance
-          .ref()
-          .child("${DateTime.now().millisecondsSinceEpoch}_profilepicture");
-      await storage.putData(
-        pickedImageBytes!,
-        SettableMetadata(contentType: image.mimeType),
+      isUploading = true;
+      update();
+
+      imageDownloadLnk.value = await _profileImageService.uploadProfileImage(
+        imageBytes: pickedImageBytes!,
+        fileName: image.name,
+        contentType: image.mimeType ?? 'image/jpeg',
       );
-
-      imageDownloadLnk.value = await storage.getDownloadURL();
       update();
     } catch (e) {
       Get.snackbar("error".tr, "upload_profile_failed".tr);
+    } finally {
+      isUploading = false;
+      update();
     }
   }
 }

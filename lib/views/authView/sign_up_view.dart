@@ -78,11 +78,6 @@ class _SignUpViewState extends State<SignUpView> {
       Get.snackbar('error'.tr, 'must_be_18'.tr);
       return;
     }
-    if (imageController.imageDownloadLnk.value.trim().isEmpty) {
-      Get.snackbar('error'.tr, 'profile_image_required'.tr);
-      return;
-    }
-
     await service.createAccount(
       context: context,
       fullName: fullNameController.text.trim(),
@@ -117,8 +112,20 @@ class _SignUpViewState extends State<SignUpView> {
               backgroundColor: Colors.white12,
               backgroundImage: imageProvider,
             ),
+            if (controller.isUploading)
+              Container(
+                width: 104,
+                height: 104,
+                decoration: BoxDecoration(
+                  color: Colors.black.withAlpha(120),
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
             InkWell(
-              onTap: controller.imagePicker,
+              onTap: controller.isUploading ? null : controller.imagePicker,
               child: Container(
                 width: 34,
                 height: 34,
@@ -201,6 +208,17 @@ class _SignUpViewState extends State<SignUpView> {
                   ),
                   const SizedBox(height: 18),
                   _imagePicker(),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'profile_photo_optional'.tr,
+                      style: TextStyle(
+                        color: Colors.white.withAlpha(185),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 18),
                   CustomField(
                     title: 'enter_full_name'.tr,

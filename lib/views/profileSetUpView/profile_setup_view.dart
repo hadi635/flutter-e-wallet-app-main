@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ewallet/controllers/profile_setup_controller.dart';
+import 'package:ewallet/services/account_security_service.dart';
 import 'package:ewallet/globals/custom_appbar.dart';
 import 'package:ewallet/globals/custom_button.dart';
 import 'package:ewallet/globals/custom_field.dart';
@@ -27,7 +28,12 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
   final fullName = TextEditingController();
   final dob = TextEditingController();
   final email = TextEditingController();
+  final walletId = TextEditingController();
   final averageMonthly = TextEditingController();
+  final currentPassword = TextEditingController();
+  final newPassword = TextEditingController();
+  final confirmNewPassword = TextEditingController();
+  final AccountSecurityService securityService = AccountSecurityService();
   bool _loading = true;
   bool _initialized = false;
 
@@ -42,7 +48,11 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
     fullName.dispose();
     dob.dispose();
     email.dispose();
+    walletId.dispose();
     averageMonthly.dispose();
+    currentPassword.dispose();
+    newPassword.dispose();
+    confirmNewPassword.dispose();
     Get.delete<ProfileSetupController>(tag: 'profile_edit');
     super.dispose();
   }
@@ -72,6 +82,9 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
     fullName.text = data['Full Name']?.toString() ?? '';
     dob.text = data['Date of Birth']?.toString() ?? '';
     email.text = accountEmail;
+    walletId.text = data['WalletId']?.toString().trim().isNotEmpty == true
+        ? data['WalletId'].toString().trim()
+        : 'no_wallet_id_yet'.tr;
     averageMonthly.text =
         data['Average Monthly Transactions']?.toString() ?? '';
     controller.setExistingImage(data['Profile Pic']?.toString() ?? '');
@@ -135,6 +148,30 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
       Get.snackbar('error'.tr, 'must_be_18'.tr);
       return;
     }
+    final shouldChangePassword = currentPassword.text.isNotEmpty ||
+        newPassword.text.isNotEmpty ||
+        confirmNewPassword.text.isNotEmpty;
+    if (shouldChangePassword) {
+      if (currentPassword.text.isEmpty ||
+          newPassword.text.isEmpty ||
+          confirmNewPassword.text.isEmpty) {
+        Get.snackbar('error'.tr, 'fields_cant_be_empty'.tr);
+        return;
+      }
+      if (newPassword.text != confirmNewPassword.text) {
+        Get.snackbar('error'.tr, 'passwords_do_not_match'.tr);
+        return;
+      }
+      try {
+        await securityService.changePassword(
+          currentPassword: currentPassword.text,
+          newPassword: newPassword.text,
+        );
+      } catch (error) {
+        Get.snackbar('error'.tr, securityService.resolvePasswordError(error));
+        return;
+      }
+    }
 
     final userRef =
         FirebaseFirestore.instance.collection('user').doc(accountEmail);
@@ -155,6 +192,9 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
     }, SetOptions(merge: true));
 
     Get.snackbar('success'.tr, 'profile_updated'.tr);
+    if (shouldChangePassword) {
+      Get.snackbar('success'.tr, 'password_changed_successfully'.tr);
+    }
     if (!mounted) return;
     Get.off(() => NavView());
   }
@@ -182,8 +222,20 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
               radius: 60,
               backgroundImage: imageProvider,
             ),
+            if (controller.isUploading)
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: Colors.black.withAlpha(120),
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
             InkWell(
-              onTap: controller.imagePicker,
+              onTap: controller.isUploading ? null : controller.imagePicker,
               child: Container(
                 height: 30,
                 width: 30,
@@ -280,10 +332,52 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
                         ),
                         const SizedBox(height: 16),
                         CustomField(
+                          title: 'wallet_id_preview'.tr,
+                          controller: walletId,
+                          readOnly: true,
+                          prefixIcon: Icons.account_balance_wallet_rounded,
+                        ),
+                        const SizedBox(height: 16),
+                        CustomField(
                           title: 'average_monthly_transactions'.tr,
                           controller: averageMonthly,
                           keybard: TextInputType.number,
                           prefixIcon: Icons.bar_chart_rounded,
+                        ),
+                        const SizedBox(height: 16),
+                        GlassContainer(
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'change_password'.tr,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              CustomField(
+                                title: 'current_password'.tr,
+                                controller: currentPassword,
+                                secure: true,
+                              ),
+                              const SizedBox(height: 14),
+                              CustomField(
+                                title: 'new_password'.tr,
+                                controller: newPassword,
+                                secure: true,
+                              ),
+                              const SizedBox(height: 14),
+                              CustomField(
+                                title: 'confirm_new_password'.tr,
+                                controller: confirmNewPassword,
+                                secure: true,
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 12),
                         Align(

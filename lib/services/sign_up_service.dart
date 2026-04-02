@@ -4,8 +4,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:get/get.dart';
+import 'dart:math';
 
 class SignUpService {
+  String _generateWalletId() {
+    final rand = Random();
+    final digits = List.generate(10, (_) => rand.nextInt(10)).join();
+    return 'W$digits';
+  }
+
   Future<void> createAccount({
     required BuildContext context,
     required String fullName,
@@ -51,7 +58,7 @@ class SignUpService {
           "Average Monthly Transactions": averageMonthlyTransactions,
           "Profile Pic": profileImage,
           "Balance": 0.00,
-          "WalletId": "",
+          "WalletId": _generateWalletId(),
         }, SetOptions(merge: true));
 
         Get.offAll(() => NavView());

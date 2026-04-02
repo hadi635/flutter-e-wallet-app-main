@@ -81,6 +81,32 @@ class _LoginViewState extends State<LoginView> {
                     secure: true,
                     controller: passwordController,
                   ),
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () async {
+                        if (emailCotroller.text.trim().isEmpty) {
+                          Get.snackbar(
+                            'error'.tr,
+                            'enter_email_for_reset'.tr,
+                          );
+                          return;
+                        }
+
+                        await service.resetPassword(
+                          emailCotroller.text.trim(),
+                        );
+                      },
+                      child: Text(
+                        'reset_password'.tr,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
