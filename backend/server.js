@@ -43,10 +43,30 @@ app.use('/confirm-topup', limiter);
 app.use('/upload-profile-image', limiter);
 
 // Strict CORS
-app.use(cors({
-  origin: process.env.CLIENT_ORIGINS ? process.env.CLIENT_ORIGINS.split(',') : 'http://localhost:3000',
-  credentials: true,
-}));
+const allowedOrigins = new Set(
+  (process.env.CLIENT_ORIGINS ||
+          [
+            'http://localhost:3000',
+            'https://infinity-sharing.money',
+            'https://www.infinity-sharing.money',
+          ].join(','))
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter((origin) => origin.length > 0),
+);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    credentials: true,
+  }),
+);
 
 // Auth middleware (verify Firebase ID token)
 async function authMiddleware(req, res, next) {
