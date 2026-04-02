@@ -61,6 +61,26 @@ async function authMiddleware(req, res, next) {
   }
 }
 
+async function optionalAuthMiddleware(req, _res, next) {
+  try {
+    const idToken =
+      req.headers.authorization?.replace('Bearer ', '') ||
+      req.headers['x-access-token'];
+    if (!idToken) {
+      req.user = null;
+      next();
+      return;
+    }
+
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    req.user = decodedToken;
+    next();
+  } catch (_err) {
+    req.user = null;
+    next();
+  }
+}
+
 // Own wallet check middleware
 async function ownWalletCheck(req, res, next) {
   try {
@@ -545,7 +565,7 @@ app.post('/confirm-topup', authMiddleware, ownWalletCheck, async (req, res) => {
 
 app.post(
   '/upload-profile-image',
-  authMiddleware,
+  optionalAuthMiddleware,
   async (req, res) => {
     try {
       const { error } = uploadProfileImageSchema.validate(req.body);
@@ -567,12 +587,15 @@ app.post(
           : contentType === 'image/webp'
               ? 'webp'
               : 'jpg';
-      const safeEmail = req.user.email.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const safeOwner = (req.user?.email || 'anonymous').replace(
+        /[^a-zA-Z0-9._-]/g,
+        '_',
+      );
       const safeName = path
         .basename(fileName)
         .replace(/[^a-zA-Z0-9._-]/g, '_');
       const finalName =
-        `${safeEmail}_${Date.now()}_${crypto.randomUUID()}_${safeName}.${extension}`;
+        `${safeOwner}_${Date.now()}_${crypto.randomUUID()}_${safeName}.${extension}`;
       const finalPath = path.join(uploadDir, finalName);
 
       await fs.writeFile(finalPath, imageBuffer);

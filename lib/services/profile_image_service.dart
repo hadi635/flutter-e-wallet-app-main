@@ -11,15 +11,12 @@ class ProfileImageService {
     required String contentType,
   }) async {
     final token = await ApiService.getIdToken();
-    if (token == null) {
-      throw Exception('Missing auth token');
-    }
 
     final response = await http.post(
       ApiService.uri('/upload-profile-image'),
       headers: {
         ...ApiService.getAuthHeaders(),
-        'Authorization': 'Bearer $token',
+        if (token != null) 'Authorization': 'Bearer $token',
       },
       body: jsonEncode({
         'fileName': fileName,
