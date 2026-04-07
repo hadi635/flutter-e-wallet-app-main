@@ -23,7 +23,10 @@ class SettingsView extends StatelessWidget {
           style: const TextStyle(color: Colors.white),
         ),
         content: Text(
-          'wallet_policy_text'.tr,
+          // Merged wallet policy + privacy + security notice.
+          '${'wallet_policy_text'.tr}\n\n'
+          '${'privacy_content'.tr}\n\n'
+          '${'security_note'.tr}',
           style: const TextStyle(color: Colors.white70, height: 1.5),
         ),
         actions: [
@@ -186,19 +189,21 @@ class SettingsView extends StatelessWidget {
                         children: [
                           Expanded(
                             child: _languageButton(
-                              active:
-                                  languageController.locale.languageCode == 'en',
+                              active: languageController.locale.languageCode ==
+                                  'en',
                               title: 'english'.tr,
-                              onTap: () => languageController.changeLanguage('en'),
+                              onTap: () =>
+                                  languageController.changeLanguage('en'),
                             ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: _languageButton(
-                              active:
-                                  languageController.locale.languageCode == 'ar',
+                              active: languageController.locale.languageCode ==
+                                  'ar',
                               title: 'arabic'.tr,
-                              onTap: () => languageController.changeLanguage('ar'),
+                              onTap: () =>
+                                  languageController.changeLanguage('ar'),
                             ),
                           ),
                         ],

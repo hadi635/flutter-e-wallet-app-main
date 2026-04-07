@@ -15,7 +15,8 @@ class _SupportChatViewState extends State<SupportChatView> {
   final TextEditingController _controller = TextEditingController();
   final List<_ChatMessage> _messages = [
     const _ChatMessage(
-      text: 'Hello. I am Infinity support. Ask about add money, cash out, fees, wallet ID, or profile security.',
+      text:
+          'Hello. I am Infinity support. Ask about add money, cash out, fees, wallet ID, or profile security.',
       isUser: false,
     ),
   ];
@@ -49,13 +50,13 @@ class _SupportChatViewState extends State<SupportChatView> {
     final q = input.toLowerCase();
 
     if (q.contains('add') || q.contains('top') || q.contains('deposit')) {
-      return 'Use Add Money to fund the wallet by card, crypto, or Wish Money / TapTap Send. Card payments open Stripe instantly. Crypto uses Solana USDC deposit instructions and credits the wallet after the payment arrives. Wish Money / TapTap Send is handled by a third party and usually takes 2 to 3 business hours.';
+      return 'Use Add Money to fund the wallet by card, crypto, or Wish Money. Crypto is instant after Solana confirmation. Wish Money creates a pending request and the first Wish payment is free from app fees. Card funding also stays pending until admin confirms it.';
     }
     if (q.contains('cash') || q.contains('withdraw')) {
-      return 'Cash out is available through our agents, crypto, and Wish Money. Agent and Wish Money cash out are handled by third parties through the support number shown in the app. Crypto cash out is kept ready for the next task.';
+      return 'Cash out is available by card, agent, crypto, and Wish Money. Card requests take 1 to 3 business days. Agent and crypto requests take 1 business day. Wish Money cash out uses the contact number shown in the app.';
     }
     if (q.contains('fee') || q.contains('cost') || q.contains('charge')) {
-      return 'Wallet to wallet transfers have no fee. Cash out has no app fee. Add money fees are 3% for Wish Money, 3% for crypto, and 5.5% plus \$0.30 for card, Visa, Mastercard, and Apple Pay.';
+      return 'Wallet to wallet transfers have no fee. Wish Money add money is free on the first payment and then 1%. Crypto add money is 2.5%. Card add money is 5.5% plus \$0.30.';
     }
     if (q.contains('secure') ||
         q.contains('privacy') ||
@@ -66,16 +67,17 @@ class _SupportChatViewState extends State<SupportChatView> {
     if (q.contains('wallet') || q.contains('transfer') || q.contains('send')) {
       return 'You can send balance directly by wallet ID inside the app. Wallet-to-wallet transfers are fee-free, and the wallet page also gives you your wallet ID and QR code for receiving money.';
     }
-    if (q.contains('profile') || q.contains('signup') || q.contains('sign up')) {
-      return 'Signup and profile editing collect name, date of birth, email, password, image, and average monthly transactions. Users must be at least 18 years old before continuing.';
+    if (q.contains('profile') ||
+        q.contains('signup') ||
+        q.contains('sign up')) {
+      return 'Signup collects full name, date of birth, country, email, password, and average monthly transactions. Users must be at least 18 years old before continuing.';
     }
 
     return 'I can help with add money, cash out, fees, wallet transfers, signup, profile details, and privacy information. Try one of the FAQ buttons or ask a short question.';
   }
 
   Widget _bubble(_ChatMessage message) {
-    final align =
-        message.isUser ? Alignment.centerRight : Alignment.centerLeft;
+    final align = message.isUser ? Alignment.centerRight : Alignment.centerLeft;
     final color = message.isUser
         ? Appcolor.primary.withAlpha(180)
         : Colors.white.withAlpha(18);
@@ -102,7 +104,8 @@ class _SupportChatViewState extends State<SupportChatView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: customAppbar(context: context, title: 'support_chat'.tr, arrorw: true),
+      appBar: customAppbar(
+          context: context, title: 'support_chat'.tr, arrorw: true),
       body: Container(
         decoration: const BoxDecoration(gradient: Appcolor.appGradient),
         child: SafeArea(

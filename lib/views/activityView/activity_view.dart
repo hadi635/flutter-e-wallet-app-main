@@ -31,43 +31,45 @@ class ActivityView extends StatelessWidget {
                   child: CircularProgressIndicator(color: Colors.white),
                 );
               } else {
+                final docs = snapshot.data!.docs.where((doc) {
+                  final data = doc.data();
+                  return data['Sender Email'] == user!.email ||
+                      data['Receiver Email'] == user!.email;
+                }).toList();
+                docs.sort((a, b) {
+                  final aTime = (a['Time'] as Timestamp?)?.toDate() ??
+                      DateTime.fromMillisecondsSinceEpoch(0);
+                  final bTime = (b['Time'] as Timestamp?)?.toDate() ??
+                      DateTime.fromMillisecondsSinceEpoch(0);
+                  return bTime.compareTo(aTime);
+                });
                 return ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 15.00),
                     shrinkWrap: true,
                     primary: false,
-                    itemCount: snapshot.data!.docs.length,
+                    itemCount: docs.length,
                     itemBuilder: ((context, index) {
-                      final data = snapshot.data!.docs[index];
+                      final data = docs[index].data();
                       final timeValue = data['Time'];
                       final trxTime = timeValue is Timestamp
                           ? timeValue.toDate()
                           : DateTime.now();
                       final formatedTime = DateFormat.yMMMEd().format(trxTime);
-                      final bool isMe = data['Sender Email'] == user!.email;
+                      final bool outgoing = data['Sender Email'] == user!.email;
+                      final status = (data['status'] ?? 'completed')
+                          .toString()
+                          .toUpperCase();
 
-                      return isMe
-                          ? CustomList(
-                              price:
-                                  "\$${MoneyFormatter.fixed2(data['amount'] ?? 0)}",
-                              subTitle: formatedTime,
-                              title:
-                                  "${'wallet_id'.tr}: ${data['Receiver Wallet ID'] ?? 'unknown'.tr}",
-                              itemColor: Colors.red,
-                              icon: CircleAvatar(
-                                // Show first char of wallet id if available.
-                                child: Text(
-                                  (() {
-                                    final value =
-                                        (data['Receiver Wallet ID'] ?? '?')
-                                            .toString();
-                                    return value.isEmpty
-                                        ? '?'
-                                        : value.substring(0, 1);
-                                  })(),
-                                ),
-                              ),
-                            )
-                          : const SizedBox();
+                      return CustomList(
+                        price:
+                            "\$${MoneyFormatter.fixed2(data['amount'] ?? data['requestedAmount'] ?? 0)}",
+                        subTitle: '$formatedTime · $status',
+                        title: outgoing
+                            ? '${data['Receiver'] ?? data['Receiver Wallet ID'] ?? 'unknown'.tr}'
+                            : '${data['Sender'] ?? 'unknown'.tr}',
+                        itemColor:
+                            outgoing ? Colors.redAccent : Appcolor.secondary,
+                      );
                     }));
               }
             }),

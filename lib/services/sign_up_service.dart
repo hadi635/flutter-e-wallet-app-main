@@ -19,6 +19,7 @@ class SignUpService {
     required String dateOfBirth,
     required String email,
     required String password,
+    required String country,
     required String averageMonthlyTransactions,
     required String profileImage,
   }) async {
@@ -48,17 +49,18 @@ class SignUpService {
         _closeLoader(context);
         // Create or update the wallet user document in the same collection
         // used by the rest of the app.
-        await FirebaseFirestore.instance
-            .collection("user")
-            .doc(email)
-            .set({
+        await FirebaseFirestore.instance.collection("user").doc(email).set({
           "Email": email,
           "Full Name": fullName,
           "Date of Birth": dateOfBirth,
+          "Country": country,
           "Average Monthly Transactions": averageMonthlyTransactions,
           "Profile Pic": profileImage,
           "Balance": 0.00,
           "WalletId": _generateWalletId(),
+          "IsBlocked": false,
+          "WishAddMoneyCompletedCount": 0,
+          "WishPromoSeen": false,
         }, SetOptions(merge: true));
 
         Get.offAllNamed(AppRoutes.nav);
@@ -88,7 +90,9 @@ class SignUpService {
     } catch (_) {
       _closeLoader(context);
       showAlert(
-          title: 'error'.tr, text: "account_creation_failed".tr, context: context);
+          title: 'error'.tr,
+          text: "account_creation_failed".tr,
+          context: context);
     }
   }
 

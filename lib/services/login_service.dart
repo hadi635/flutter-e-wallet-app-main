@@ -1,4 +1,5 @@
 import 'package:ewallet/main.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -41,6 +42,20 @@ class LoginService {
       );
 
       if (cred.user != null) {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('user')
+            .doc(cred.user!.email)
+            .get();
+        if (userDoc.data()?['IsBlocked'] == true) {
+          await FirebaseAuth.instance.signOut();
+          _closeLoader(context);
+          showAlert(
+            title: 'error'.tr,
+            text: 'Your account is blocked.',
+            context: context,
+          );
+          return;
+        }
         _closeLoader(context);
         Get.offAllNamed(AppRoutes.nav);
         Get.snackbar("congratulations".tr, "login_success".tr);

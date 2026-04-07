@@ -68,6 +68,7 @@ class AppTranslations extends Translations {
     'card_details': 'Card details',
     'please_wait': 'Please wait...',
     'go_stripe': 'Go to Stripe Checkout',
+    'go_moonpay': 'Go to MoonPay',
     'missing_payment_link':
         'Missing STRIPE_PAYMENT_LINK. Add --dart-define=STRIPE_PAYMENT_LINK=https://buy.stripe.com/...',
     'payment_opened_manual_credit':
@@ -132,14 +133,14 @@ class AppTranslations extends Translations {
     'wish_add_money_contact':
         'To add money with Wish Money or TapTap Send, contact the third-party support number and share your request.',
     'fee': 'Fee',
+    'availability': 'Availability',
     'speed': 'Speed',
     'instant': 'Instant',
     'continue_text': 'Continue',
     'two_three_business_hours': '2 to 3 business hours',
     'stripe_backend_missing':
         'Missing API_BASE_URL. Set --dart-define=API_BASE_URL=https://www.infinity-sharing.money/api',
-    'crypto_coming_soon':
-        'Crypto cash out setup is still pending.',
+    'crypto_coming_soon': 'Crypto cash out setup is still pending.',
     'missing_crypto_deposit': 'Missing crypto deposit request.',
     'crypto_send_exact_title': 'Send the exact crypto amount',
     'crypto_request_intro':
@@ -163,9 +164,12 @@ class AppTranslations extends Translations {
     'wallet_address_copied': 'Wallet address copied.',
     'copy_crypto_amount': 'Copy Crypto Amount',
     'crypto_amount_copied': 'Crypto amount copied.',
-    'payment_auto_checking': 'Payment opened. The app is checking status automatically.',
-    'payment_waiting_credit': 'Waiting for Stripe payment confirmation and wallet credit.',
-    'crypto_waiting_credit': 'Waiting for Solana payment confirmation and automatic wallet credit.',
+    'payment_auto_checking':
+        'Payment opened. The app is checking status automatically.',
+    'payment_waiting_credit':
+        'Waiting for Stripe payment confirmation and wallet credit.',
+    'crypto_waiting_credit':
+        'Waiting for Solana payment confirmation and automatic wallet credit.',
     'cash_out_intro_title': 'Cash out options',
     'cash_out_intro':
         'Choose the way you want to cash out. Local cash out is handled by trusted third parties under country rules.',
@@ -228,6 +232,154 @@ class AppTranslations extends Translations {
     'uploading': 'Uploading...',
     'password_reset_failed': 'Unable to send password reset email.',
     'password_change_failed': 'Unable to change password.',
+    'about': 'About',
+    'services': 'Services',
+    'contact': 'Contact',
+    'privacy': 'Privacy',
+    'terms': 'Terms',
+    'admin': 'Admin',
+    'welcome_badge': 'Unlimited Wallet Access',
+    'welcome_title': 'Move money with one clean wallet flow.',
+    'welcome_tagline': 'No Limit NO Saving for your data',
+    'welcome_description':
+        'Create your account, receive balance by wallet ID or QR, add money with the right method for your case, and keep manual requests visible until they are confirmed.',
+    'welcome_stat_one': 'Wallet to wallet',
+    'welcome_stat_two': 'Crypto instant',
+    'welcome_stat_three': 'Manual review tracking',
+    'welcome_cta_title': 'Start with a simpler wallet setup',
+    'welcome_cta_body':
+        'Open your account, unlock the first Wish Money promotion, and manage every wallet operation from one place.',
+    'add_money_overview':
+        'Choose the funding method that fits your case. Crypto is instant, Wish Money is a pending manual request, and card top-up stays pending until approval.',
+    'wish_promo_title': 'Wish Promotion',
+    'wish_promo_body':
+        'Your first Wish Money add money request has 0% fee. After that, Wish Money uses a 1% fee.',
+    'wish_method_title': 'Wish Money',
+    'wish_method_subtitle_free':
+        'Fast manual funding with no fee on the first payment.',
+    'wish_method_subtitle_paid':
+        'Fast manual funding with a low 1% fee after the first payment.',
+    'wish_fee_free': '0% first payment',
+    'wish_fee_paid': '1%',
+    'wish_speed': 'Pending until admin confirms',
+    'crypto_method_title': 'Crypto',
+    'crypto_method_subtitle_new':
+        'Instant USDC funding on Solana with automatic wallet credit after confirmation.',
+    'crypto_fee_value': '2.5%',
+    'crypto_speed_value': 'Instant',
+    'card_method_title_new': 'Visa / Mastercard',
+    'card_method_subtitle_new':
+        'Manual review before wallet credit for users who can wait.',
+    'card_fee_value': '5.5% + \$0.30',
+    'card_speed_value': '1 to 3 business days',
+    'wish_pending_title': 'Wish Money Pending Payment',
+    'wish_pending_body':
+        'Send the payment to @number. The request stays pending until admin confirms the received amount minus the fee.',
+    'requested_amount': 'Requested amount',
+    'wallet_credit_label': 'Wallet credit',
+    'sender_full_name': 'Sender full name',
+    'sender_phone': 'Sender phone',
+    'wish_transfer_reference': 'Wish transfer reference',
+    'payment_note': 'Note',
+    'save_pending_request': 'Save Pending Request',
+    'wish_pending_saved':
+        'Wish request saved. Send the payment to the support number and wait for admin confirmation.',
+    'crypto_panel_title': 'Crypto Instant Funding',
+    'crypto_panel_body':
+        'Create a Solana USDC request. The wallet credits automatically after the blockchain payment is confirmed.',
+    'card_pending_title': 'Card Pending Payment Review',
+    'card_pending_body':
+        'Pay through Stripe. After payment, the top-up stays pending until admin confirmation within 1 to 3 business days.',
+    'card_provider_stripe': 'Stripe',
+    'card_provider_stripe_body':
+        'Direct wallet top-up flow with backend confirmation.',
+    'card_provider_moonpay': 'MoonPay',
+    'card_provider_moonpay_body':
+        'Hosted card crypto checkout for supported countries.',
+    'moonpay_country_required':
+        'Complete your profile country to check MoonPay availability.',
+    'moonpay_country_not_supported':
+        'MoonPay is not available for your selected country.',
+    'moonpay_country_unavailable_short': 'Unavailable here',
+    'moonpay_supported_country': 'Available in this country.',
+    'moonpay_panel_body':
+        'MoonPay opens its hosted checkout in your browser. Availability and fees depend on MoonPay region support and payment method.',
+    'moonpay_opened': 'MoonPay opened in your browser.',
+    'moonpay_result_pending':
+        'MoonPay returned a pending transaction status. Finish the flow on MoonPay.',
+    'moonpay_result_opened':
+        'MoonPay transaction @id opened successfully. Follow MoonPay to complete the purchase.',
+    'card_holder_name': 'Card holder name',
+    'card_reference': 'Card reference or last 4 digits',
+    'save_pending_card_request': 'Save Pending Card Request',
+    'card_pending_saved':
+        'Card request saved. Balance stays pending until admin confirms it in 1 to 3 business days.',
+    'stripe_card_pending_message':
+        'Card payment received. Your top-up is pending admin confirmation for 1 to 3 business days.',
+    'pending_request_saved': 'Pending request saved',
+    'recent_add_money_requests': 'Your recent add money requests',
+    'cash_out_title_new': 'Cash Out Options',
+    'cash_out_overview':
+        'Choose how you want to withdraw. Card requests take 1 to 3 business days, agent and crypto requests take 1 business day, and Wish Money stays contact-based.',
+    'withdraw_amount': 'Amount to withdraw',
+    'cashout_card_title': 'Card',
+    'cashout_card_subtitle':
+        'Pending card withdrawal handled with manual review.',
+    'cashout_card_speed': '1 to 3 business days',
+    'cashout_agent_title': 'Agent',
+    'cashout_agent_subtitle':
+        'Pending request routed to the nearest available third-party point.',
+    'cashout_agent_speed': '1 business day',
+    'cashout_crypto_title': 'Crypto',
+    'cashout_crypto_subtitle':
+        'Pending crypto withdrawal sent after manual handling.',
+    'cashout_crypto_speed': '1 business day',
+    'cashout_wish_title': 'Wish Money',
+    'cashout_wish_subtitle':
+        'Wish Money cash out is handled through direct contact.',
+    'cashout_wish_speed': 'Contact us',
+    'cashout_card_panel_title': 'Card Withdrawal Request',
+    'cashout_card_panel_body':
+        'This request stays pending until manual confirmation within 1 to 3 business days.',
+    'save_pending_card_withdrawal': 'Save Pending Card Withdrawal',
+    'cashout_agent_panel_title': 'Agent Cash Out Request',
+    'cashout_agent_panel_body':
+        'Add your contact number and preferred nearby location so the admin can route your request.',
+    'contact_phone': 'Contact phone',
+    'preferred_location': 'Preferred nearby location',
+    'save_pending_agent_cashout': 'Save Pending Agent Cash Out',
+    'cashout_crypto_panel_title': 'Crypto Cash Out Request',
+    'cashout_crypto_panel_body':
+        'This request stays pending until it is manually handled within one business day.',
+    'wallet_address_field': 'Wallet address',
+    'save_pending_crypto_cashout': 'Save Pending Crypto Cash Out',
+    'cashout_wish_panel_title': 'Wish Money Contact Flow',
+    'cashout_wish_panel_body':
+        'Wish Money cash out is handled by third party. Contact @number to proceed.',
+    'contact_wish_support': 'Contact Wish Money Support',
+    'cashout_wish_contact_message':
+        'Contact the support number below for Wish Money cash out.',
+    'cashout_pending_saved': 'Cash out request saved as pending.',
+    'recent_cashout_requests': 'Your recent cash out requests',
+    'coming_soon': 'Coming Soon',
+    'wallet_card_brand': 'INFINITY WALLET',
+    'wallet_card_teaser': 'Coming Soon Physical and Virtual Visa Card',
+    'wallet_add_money_summary':
+        'Crypto instant, Wish pending, card pending review',
+    'wallet_cash_out_summary':
+        'Card, agent, or crypto requests with pending handling',
+    'receive_money_body':
+        'Use your wallet ID or QR to receive wallet-to-wallet transfers instantly.',
+    'pending_operations': 'Pending operations',
+    'request_kind_add_money': 'Add money',
+    'request_kind_cash_out': 'Cash out',
+    'request_status_pending': 'Pending',
+    'request_status_confirmed': 'Confirmed',
+    'request_status_rejected': 'Rejected',
+    'request_method_wish': 'Wish Money',
+    'request_method_card': 'Visa / Mastercard',
+    'request_method_crypto': 'Crypto',
+    'request_method_agent': 'Agent',
   };
 
   static const Map<String, String> _arabic = {
@@ -295,6 +447,7 @@ class AppTranslations extends Translations {
     'card_details': 'تفاصيل البطاقة',
     'please_wait': 'يرجى الانتظار...',
     'go_stripe': 'الانتقال إلى Stripe Checkout',
+    'go_moonpay': 'الانتقال إلى MoonPay',
     'missing_payment_link':
         'رابط STRIPE_PAYMENT_LINK مفقود. أضف --dart-define=STRIPE_PAYMENT_LINK=https://buy.stripe.com/...',
     'payment_opened_manual_credit':
@@ -348,8 +501,7 @@ class AppTranslations extends Translations {
     'add_money_intro':
         'اختر وسيلة التمويل المناسبة لك. البطاقة تفتح Stripe فورًا، والعملات الرقمية تستخدم إيداع USDC على Solana مع إضافة تلقائية، وWish Money أو TapTap Send تتم عبر طرف ثالث.',
     'card_method': 'بطاقة ائتمان / ماستركارد / Apple Pay',
-    'card_method_subtitle':
-        'تمويل فوري عبر Stripe مع معالجة آمنة للبطاقة.',
+    'card_method_subtitle': 'تمويل فوري عبر Stripe مع معالجة آمنة للبطاقة.',
     'crypto_method': 'عملات رقمية',
     'crypto_add_money_subtitle':
         'تمويل فوري بعملة USDC على Solana مع إضافة تلقائية بعد وصول التحويل.',
@@ -359,6 +511,7 @@ class AppTranslations extends Translations {
     'wish_add_money_contact':
         'لإضافة الأموال عبر Wish Money أو TapTap Send، تواصل مع رقم دعم الطرف الثالث وشارك طلبك.',
     'fee': 'الرسوم',
+    'availability': 'التوفر',
     'speed': 'السرعة',
     'instant': 'فوري',
     'continue_text': 'متابعة',
@@ -389,9 +542,11 @@ class AppTranslations extends Translations {
     'wallet_address_copied': 'تم نسخ عنوان المحفظة.',
     'copy_crypto_amount': 'نسخ مبلغ العملات الرقمية',
     'crypto_amount_copied': 'تم نسخ مبلغ العملات الرقمية.',
-    'payment_auto_checking': 'تم فتح صفحة الدفع. التطبيق يتحقق من الحالة تلقائيًا.',
+    'payment_auto_checking':
+        'تم فتح صفحة الدفع. التطبيق يتحقق من الحالة تلقائيًا.',
     'payment_waiting_credit': 'بانتظار تأكيد دفع Stripe وإضافة الرصيد.',
-    'crypto_waiting_credit': 'بانتظار تأكيد الدفع على Solana وإضافة الرصيد تلقائيًا.',
+    'crypto_waiting_credit':
+        'بانتظار تأكيد الدفع على Solana وإضافة الرصيد تلقائيًا.',
     'cash_out_intro_title': 'خيارات سحب الأموال',
     'cash_out_intro':
         'اختر الطريقة التي تريد سحب الأموال بها. السحب المحلي يتم عبر أطراف ثالثة موثوقة وفق قوانين البلد.',
@@ -405,8 +560,7 @@ class AppTranslations extends Translations {
     'crypto_cash_out_contact':
         'تواصل مع رقم الدعم لإكمال سحب العملات الرقمية عبر الطرف الثالث.',
     'wish_cash_out': 'Wish Money',
-    'wish_cash_out_subtitle':
-        'سحب الأموال عبر دعم Wish Money كطرف ثالث.',
+    'wish_cash_out_subtitle': 'سحب الأموال عبر دعم Wish Money كطرف ثالث.',
     'wish_cash_out_contact':
         'تواصل مع رقم الدعم لإكمال سحب Wish Money مع الطرف الثالث.',
     'third_party_speed': 'تتم عبر طرف ثالث',
@@ -454,6 +608,151 @@ class AppTranslations extends Translations {
     'uploading': 'جارٍ الرفع...',
     'password_reset_failed': 'تعذر إرسال رسالة إعادة تعيين كلمة المرور.',
     'password_change_failed': 'تعذر تغيير كلمة المرور.',
+    'about': 'حول',
+    'services': 'الخدمات',
+    'contact': 'اتصل بنا',
+    'privacy': 'الخصوصية',
+    'terms': 'الشروط',
+    'admin': 'المشرف',
+    'welcome_badge': 'وصول غير محدود للمحفظة',
+    'welcome_title': 'حرّك أموالك عبر محفظة واحدة بتجربة واضحة.',
+    'welcome_tagline': 'No Limit NO Saving for your data',
+    'welcome_description':
+        'أنشئ حسابك، واستقبل الرصيد عبر رقم المحفظة أو رمز QR، وأرسل طلبات الإضافة أو السحب مع متابعة واضحة حتى يتم تأكيدها.',
+    'welcome_stat_one': 'تحويل من محفظة إلى محفظة',
+    'welcome_stat_two': 'عملات رقمية فورية',
+    'welcome_stat_three': 'متابعة للطلبات اليدوية',
+    'welcome_cta_title': 'ابدأ بمحفظة أبسط',
+    'welcome_cta_body':
+        'افتح حسابك، واحصل على عرض Wish Money لأول مرة، وأدر كل عمليات محفظتك من مكان واحد.',
+    'add_money_overview':
+        'اختر طريقة الإضافة المناسبة لك. العملات الرقمية فورية، وWish Money طلب يدوي معلق، والبطاقة تبقى معلقة حتى الموافقة.',
+    'wish_promo_title': 'عرض Wish',
+    'wish_promo_body':
+        'أول طلب إضافة أموال عبر Wish Money بدون رسوم 0%. بعد ذلك تصبح الرسوم 1%.',
+    'wish_method_title': 'Wish Money',
+    'wish_method_subtitle_free': 'إضافة يدوية سريعة بدون رسوم في أول دفعة.',
+    'wish_method_subtitle_paid':
+        'إضافة يدوية سريعة مع رسوم منخفضة 1% بعد أول دفعة.',
+    'wish_fee_free': '0% لأول دفعة',
+    'wish_fee_paid': '1%',
+    'wish_speed': 'معلق حتى تأكيد المشرف',
+    'crypto_method_title': 'العملات الرقمية',
+    'crypto_method_subtitle_new':
+        'إضافة USDC فورية على شبكة Solana مع شحن تلقائي بعد التأكيد.',
+    'crypto_fee_value': '2.5%',
+    'crypto_speed_value': 'فوري',
+    'card_method_title_new': 'Visa / Mastercard',
+    'card_method_subtitle_new':
+        'مراجعة يدوية قبل إضافة الرصيد للمستخدمين الذين يمكنهم الانتظار.',
+    'card_fee_value': '5.5% + \$0.30',
+    'card_speed_value': 'من 1 إلى 3 أيام عمل',
+    'wish_pending_title': 'دفع Wish Money المعلق',
+    'wish_pending_body':
+        'أرسل الدفعة إلى @number. يبقى الطلب معلقًا حتى يؤكد المشرف المبلغ المستلم بعد خصم الرسوم.',
+    'requested_amount': 'المبلغ المطلوب',
+    'wallet_credit_label': 'الرصيد الذي سيضاف',
+    'sender_full_name': 'اسم المرسل الكامل',
+    'sender_phone': 'هاتف المرسل',
+    'wish_transfer_reference': 'مرجع تحويل Wish',
+    'payment_note': 'ملاحظة',
+    'save_pending_request': 'حفظ الطلب المعلق',
+    'wish_pending_saved':
+        'تم حفظ طلب Wish. أرسل الدفعة إلى رقم الدعم وانتظر تأكيد المشرف.',
+    'crypto_panel_title': 'إضافة فورية بالعملات الرقمية',
+    'crypto_panel_body':
+        'أنشئ طلب USDC على Solana. تتم إضافة الرصيد تلقائيًا بعد تأكيد التحويل على الشبكة.',
+    'card_pending_title': 'مراجعة دفع البطاقة المعلقة',
+    'card_pending_body':
+        'ادفع عبر Stripe. بعد الدفع يبقى طلب الإضافة معلقًا حتى تأكيد المشرف خلال 1 إلى 3 أيام عمل.',
+    'card_provider_stripe': 'Stripe',
+    'card_provider_stripe_body':
+        'إضافة مباشرة إلى المحفظة مع تأكيد من الخادم.',
+    'card_provider_moonpay': 'MoonPay',
+    'card_provider_moonpay_body':
+        'شراء عملات رقمية بالبطاقة عبر صفحة مستضافة في البلدان المدعومة.',
+    'moonpay_country_required':
+        'أكمل حقل البلد في ملفك الشخصي للتحقق من توفر MoonPay.',
+    'moonpay_country_not_supported':
+        'MoonPay غير متاح للبلد المحدد في حسابك.',
+    'moonpay_country_unavailable_short': 'غير متاح هنا',
+    'moonpay_supported_country': 'متاح في هذا البلد.',
+    'moonpay_panel_body':
+        'يفتح MoonPay صفحة دفع مستضافة داخل المتصفح. التوفر والرسوم يعتمدان على البلد وطريقة الدفع لدى MoonPay.',
+    'moonpay_opened': 'تم فتح MoonPay في المتصفح.',
+    'moonpay_result_pending':
+        'أعاد MoonPay حالة معاملة قيد الانتظار. أكمل المتابعة داخل MoonPay.',
+    'moonpay_result_opened':
+        'تم فتح معاملة MoonPay رقم @id بنجاح. تابع داخل MoonPay لإكمال الشراء.',
+    'card_holder_name': 'اسم حامل البطاقة',
+    'card_reference': 'مرجع البطاقة أو آخر 4 أرقام',
+    'save_pending_card_request': 'حفظ طلب البطاقة المعلق',
+    'card_pending_saved':
+        'تم حفظ طلب البطاقة. الرصيد يبقى معلقًا حتى يؤكده المشرف خلال 1 إلى 3 أيام عمل.',
+    'stripe_card_pending_message':
+        'تم استلام دفعة البطاقة. طلب الإضافة الآن قيد الانتظار حتى تأكيد المشرف خلال 1 إلى 3 أيام عمل.',
+    'pending_request_saved': 'تم حفظ الطلب المعلق',
+    'recent_add_money_requests': 'أحدث طلبات إضافة الأموال',
+    'cash_out_title_new': 'خيارات سحب الأموال',
+    'cash_out_overview':
+        'اختر طريقة السحب المناسبة. طلبات البطاقة تستغرق من 1 إلى 3 أيام عمل، وطلبات الوكيل والعملات الرقمية يوم عمل واحد، وWish Money عبر التواصل المباشر.',
+    'withdraw_amount': 'المبلغ المراد سحبه',
+    'cashout_card_title': 'البطاقة',
+    'cashout_card_subtitle': 'طلب سحب بالبطاقة مع مراجعة يدوية.',
+    'cashout_card_speed': 'من 1 إلى 3 أيام عمل',
+    'cashout_agent_title': 'الوكيل',
+    'cashout_agent_subtitle':
+        'طلب معلق يتم توجيهه إلى أقرب نقطة طرف ثالث متاحة.',
+    'cashout_agent_speed': 'يوم عمل واحد',
+    'cashout_crypto_title': 'العملات الرقمية',
+    'cashout_crypto_subtitle':
+        'طلب سحب بالعملات الرقمية يتم تنفيذه بعد المعالجة اليدوية.',
+    'cashout_crypto_speed': 'يوم عمل واحد',
+    'cashout_wish_title': 'Wish Money',
+    'cashout_wish_subtitle': 'سحب Wish Money يتم عبر التواصل المباشر.',
+    'cashout_wish_speed': 'تواصل معنا',
+    'cashout_card_panel_title': 'طلب سحب إلى البطاقة',
+    'cashout_card_panel_body':
+        'يبقى هذا الطلب معلقًا حتى التأكيد اليدوي خلال 1 إلى 3 أيام عمل.',
+    'save_pending_card_withdrawal': 'حفظ طلب سحب البطاقة',
+    'cashout_agent_panel_title': 'طلب سحب عبر وكيل',
+    'cashout_agent_panel_body':
+        'أضف رقم التواصل والموقع القريب المفضل حتى يتم توجيه طلبك بشكل صحيح.',
+    'contact_phone': 'رقم التواصل',
+    'preferred_location': 'الموقع القريب المفضل',
+    'save_pending_agent_cashout': 'حفظ طلب سحب الوكيل',
+    'cashout_crypto_panel_title': 'طلب سحب العملات الرقمية',
+    'cashout_crypto_panel_body':
+        'يبقى هذا الطلب معلقًا حتى تتم معالجته يدويًا خلال يوم عمل واحد.',
+    'wallet_address_field': 'عنوان المحفظة',
+    'save_pending_crypto_cashout': 'حفظ طلب سحب العملات الرقمية',
+    'cashout_wish_panel_title': 'مسار التواصل لـ Wish Money',
+    'cashout_wish_panel_body':
+        'سحب Wish Money يتم عبر طرف ثالث. تواصل مع @number للمتابعة.',
+    'contact_wish_support': 'التواصل مع دعم Wish Money',
+    'cashout_wish_contact_message':
+        'تواصل مع رقم الدعم أدناه لإتمام سحب Wish Money.',
+    'cashout_pending_saved': 'تم حفظ طلب السحب كمعلق.',
+    'recent_cashout_requests': 'أحدث طلبات السحب',
+    'coming_soon': 'قريبًا',
+    'wallet_card_brand': 'INFINITY WALLET',
+    'wallet_card_teaser': 'قريبًا بطاقة Visa فعلية وافتراضية',
+    'wallet_add_money_summary':
+        'العملات الرقمية فورية، وWish معلقة، والبطاقة بانتظار المراجعة',
+    'wallet_cash_out_summary':
+        'طلبات البطاقة أو الوكيل أو العملات الرقمية مع متابعة معلقة',
+    'receive_money_body':
+        'استخدم رقم محفظتك أو رمز QR لاستلام التحويلات من محفظة إلى محفظة بشكل فوري.',
+    'pending_operations': 'العمليات المعلقة',
+    'request_kind_add_money': 'إضافة أموال',
+    'request_kind_cash_out': 'سحب أموال',
+    'request_status_pending': 'قيد الانتظار',
+    'request_status_confirmed': 'مؤكد',
+    'request_status_rejected': 'مرفوض',
+    'request_method_wish': 'Wish Money',
+    'request_method_card': 'Visa / Mastercard',
+    'request_method_crypto': 'العملات الرقمية',
+    'request_method_agent': 'الوكيل',
   };
 
   @override

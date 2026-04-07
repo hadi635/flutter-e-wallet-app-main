@@ -17,12 +17,16 @@ class StripeCheckoutSessionResult {
 class StripeTopUpResult {
   final bool success;
   final bool credited;
+  final bool pending;
   final String message;
+  final String? requestId;
 
   const StripeTopUpResult({
     required this.success,
     required this.credited,
+    required this.pending,
     required this.message,
+    this.requestId,
   });
 }
 
@@ -152,9 +156,11 @@ class StripeService {
     return StripeTopUpResult(
       success: data['success'] == true,
       credited: data['credited'] == true,
+      pending: data['pending'] == true,
       message: data['message']?.toString() ??
           data['error']?.toString() ??
           'Top-up result received',
+      requestId: data['requestId']?.toString(),
     );
   }
 }

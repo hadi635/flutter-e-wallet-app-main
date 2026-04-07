@@ -232,6 +232,52 @@ const confirmCryptoTopupSchema = Joi.object({
   depositId: Joi.string().required(),
 });
 
+const initializeUserProfileSchema = Joi.object({
+  fullName: Joi.string().trim().min(2).max(120).required(),
+  dateOfBirth: Joi.string().trim().max(40).required(),
+  country: Joi.string().trim().min(2).max(80).required(),
+  averageMonthlyTransactions: Joi.string().trim().max(80).required(),
+  profileImage: Joi.string().allow('').max(4096).default(''),
+});
+
+const walletTransferSchema = Joi.object({
+  receiverWalletId: Joi.string().trim().min(4).max(40).required(),
+  amount: Joi.number().positive().max(10000).required(),
+});
+
+const addMoneyRequestSchema = Joi.object({
+  method: Joi.string().valid('wish', 'card').required(),
+  amount: Joi.number().positive().max(10000).required(),
+  note: Joi.string().allow('').max(500).default(''),
+  paymentReference: Joi.string().allow('').max(120).default(''),
+  senderName: Joi.string().allow('').max(120).default(''),
+  senderPhone: Joi.string().allow('').max(80).default(''),
+  senderWallet: Joi.string().allow('').max(160).default(''),
+});
+
+const cashOutRequestSchema = Joi.object({
+  method: Joi.string().valid('card', 'agent', 'crypto', 'wish').required(),
+  amount: Joi.number().positive().max(10000).required(),
+  note: Joi.string().allow('').max(500).default(''),
+  contactPhone: Joi.string().allow('').max(80).default(''),
+  preferredLocation: Joi.string().allow('').max(160).default(''),
+  walletAddress: Joi.string().allow('').max(180).default(''),
+});
+
+const adminLoginSchema = Joi.object({
+  username: Joi.string().trim().required(),
+  password: Joi.string().required(),
+});
+
+const adminBlockSchema = Joi.object({
+  email: Joi.string().email().required(),
+  blocked: Joi.boolean().required(),
+});
+
+const adminRejectSchema = Joi.object({
+  reason: Joi.string().allow('').max(500).default(''),
+});
+
 const uploadProfileImageSchema = Joi.object({
   fileName: Joi.string().max(255).required(),
   contentType: Joi.string()
@@ -291,11 +337,11 @@ const topupFixedFee = Number.isFinite(configuredTopupFixedFee)
   ? configuredTopupFixedFee
   : 0.3;
 const configuredCryptoTopupFeePercentage = Number(
-  process.env.CRYPTO_TOPUP_FEE_PERCENT || 3,
+  process.env.CRYPTO_TOPUP_FEE_PERCENT || 2.5,
 );
 const cryptoTopupFeePercentage = Number.isFinite(configuredCryptoTopupFeePercentage)
   ? configuredCryptoTopupFeePercentage
-  : 3;
+  : 2.5;
 const firebaseProjectId = process.env.FIREBASE_PROJECT_ID || 'ewallet-12201';
 const firebaseStorageBucket =
   process.env.FIREBASE_STORAGE_BUCKET || 'ewallet-12201.firebasestorage.app';
@@ -304,6 +350,10 @@ const firebasePrivateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(
   /\\n/g,
   '\n',
 );
+const adminUsername = process.env.ADMIN_USERNAME || 'hado@infinity.solution';
+const adminPassword = process.env.ADMIN_PASSWORD || '@Infinitylabs.25..';
+const adminSessionSecret =
+  process.env.ADMIN_SESSION_SECRET || `${stripeSecretKey}:${firebaseProjectId}`;
 
 if (!stripeSecretKey) {
   console.error('Missing STRIPE_SECRET_KEY in backend/.env');
@@ -338,6 +388,109 @@ const stripe = new Stripe(stripeSecretKey);
 const firestoreProjectId = firebaseProjectId;
 const solanaWalletAddress = (process.env.SOLANA_WALLET_ADDRESS || '').trim();
 const solanaRpcUrl = (process.env.SOLANA_RPC_URL || '').trim();
+
+function toMoney(value) {
+  return Math.round(Number(value) * 100) / 100;
+}
+
+function toBase64Url(input) {
+  return Buffer.from(input)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+function fromBase64Url(input) {
+  const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+  return Buffer.from(padded, 'base64').toString('utf8');
+}
+
+function signAdminToken(payload) {
+  const encodedPayload = toBase64Url(JSON.stringify(payload));
+  const signature = crypto
+    .createHmac('sha256', adminSessionSecret)
+    .update(encodedPayload)
+    .digest('hex');
+  return `${encodedPayload}.${signature}`;
+}
+
+function verifyAdminToken(token) {
+  if (!token || !token.includes('.')) return null;
+  const [encodedPayload, signature] = token.split('.', 2);
+  const expected = crypto
+    .createHmac('sha256', adminSessionSecret)
+    .update(encodedPayload)
+    .digest('hex');
+  if (
+    signature.length !== expected.length ||
+    !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
+  ) {
+    return null;
+  }
+  try {
+    const payload = JSON.parse(fromBase64Url(encodedPayload));
+    if (!payload?.exp || Number(payload.exp) <= Date.now()) {
+      return null;
+    }
+    return payload;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function serializeForResponse(value) {
+  if (value instanceof admin.firestore.Timestamp) {
+    return value.toMillis();
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => serializeForResponse(item));
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        serializeForResponse(item),
+      ]),
+    );
+  }
+  return value;
+}
+
+async function adminMiddleware(req, res, next) {
+  try {
+    const rawHeader =
+      req.headers.authorization?.replace('Bearer ', '').trim() ||
+      req.headers['x-admin-token']?.toString().trim() ||
+      '';
+    const payload = verifyAdminToken(rawHeader);
+    if (!payload) {
+      return res.status(401).json({ error: 'Invalid admin session' });
+    }
+    req.admin = payload;
+    next();
+  } catch (_error) {
+    return res.status(401).json({ error: 'Invalid admin session' });
+  }
+}
+
+async function generateUniqueWalletId() {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const candidate = `W${Array.from({ length: 10 }, () =>
+      crypto.randomInt(0, 10),
+    ).join('')}`;
+    const query = await db
+      .collection('user')
+      .where('WalletId', '==', candidate)
+      .limit(1)
+      .get();
+    if (query.empty) {
+      return candidate;
+    }
+  }
+  throw new Error('Unable to allocate unique wallet ID');
+}
 
 async function findUserWalletTarget({ email, walletId }) {
   const normalizedWalletId = (walletId || '').toString().trim();
@@ -400,7 +553,6 @@ async function findUserWalletTarget({ email, walletId }) {
 }
 
 function calculateTopupAmounts(grossAmount) {
-  const toMoney = (value) => Math.round(Number(value) * 100) / 100;
   const normalizedGross = toMoney(grossAmount);
   const feeAmount = toMoney(
     normalizedGross * (topupFeePercentage / 100) + topupFixedFee,
@@ -410,6 +562,661 @@ function calculateTopupAmounts(grossAmount) {
     grossAmount: normalizedGross,
     feeAmount,
     netAmount,
+  };
+}
+
+function calculateManualAddMoneyAmounts({
+  method,
+  amount,
+  completedWishCount = 0,
+}) {
+  let feePercent = 0;
+  let feeFixed = 0;
+  let firstWishFree = false;
+
+  switch (method) {
+    case 'wish':
+      firstWishFree = completedWishCount === 0;
+      feePercent = firstWishFree ? 0 : 1;
+      break;
+    case 'card':
+      feePercent = topupFeePercentage;
+      feeFixed = topupFixedFee;
+      break;
+    default:
+      throw new Error('Unsupported add money method');
+  }
+
+  const requestedAmount = toMoney(amount);
+  const feeAmount = toMoney(requestedAmount * (feePercent / 100) + feeFixed);
+  const netAmount = toMoney(Math.max(0, requestedAmount - feeAmount));
+  if (netAmount <= 0) {
+    throw new Error('Amount is too low after fees.');
+  }
+
+  return {
+    requestedAmount,
+    feePercent,
+    feeFixed,
+    feeAmount,
+    netAmount,
+    firstWishFree,
+  };
+}
+
+async function createAddMoneyRequest({
+  email,
+  method,
+  amount,
+  note = '',
+  paymentReference = '',
+  senderName = '',
+  senderPhone = '',
+  senderWallet = '',
+  requestId,
+  forceHistoryId,
+  source = 'manual',
+}) {
+  const userSnap = await db.collection('user').doc(email).get();
+  if (!userSnap.exists) {
+    throw new Error('User profile not found.');
+  }
+
+  const userData = userSnap.data() || {};
+  if (userData.IsBlocked === true) {
+    throw new Error('Your account is blocked.');
+  }
+
+  const walletId = (userData.WalletId || '').toString();
+  const fullName = (userData['Full Name'] || email).toString();
+  const country = (userData.Country || '').toString();
+  const completedWishCount = Number(userData.WishAddMoneyCompletedCount || 0);
+  const amounts = calculateManualAddMoneyAmounts({
+    method,
+    amount,
+    completedWishCount,
+  });
+
+  const requestRef = requestId
+    ? db.collection('wallet_requests').doc(requestId)
+    : db.collection('wallet_requests').doc();
+  const historyRef = forceHistoryId
+    ? db.collection('history').doc(forceHistoryId)
+    : db.collection('history').doc();
+
+  await requestRef.set({
+    requestId: requestRef.id,
+    kind: 'add_money',
+    method,
+    status: 'pending',
+    email,
+    walletId,
+    fullName,
+    country,
+    requestedAmount: amounts.requestedAmount,
+    feePercent: amounts.feePercent,
+    feeFixed: amounts.feeFixed,
+    feeAmount: amounts.feeAmount,
+    netAmount: amounts.netAmount,
+    promotionApplied: amounts.firstWishFree ? 'wish_first_payment_free' : '',
+    paymentReference: paymentReference.trim(),
+    senderName: senderName.trim(),
+    senderPhone: senderPhone.trim(),
+    senderWallet: senderWallet.trim(),
+    note: note.trim(),
+    historyId: historyRef.id,
+    source,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await historyRef.set({
+    Sender:
+      method === 'wish'
+        ? 'Wish Money'
+        : method === 'card'
+            ? 'Visa / Mastercard'
+            : method,
+    Receiver: fullName,
+    'Receiver Email': email,
+    'Sender Email': `${method}_pending@system`,
+    'Sender Wallet ID': method.toUpperCase(),
+    'Receiver Wallet ID': walletId,
+    type: 'pending',
+    method,
+    status: 'pending',
+    Time: admin.firestore.FieldValue.serverTimestamp(),
+    amount: 0,
+    requestedAmount: amounts.requestedAmount,
+    feeAmount: amounts.feeAmount,
+    netAmount: amounts.netAmount,
+    reference: requestRef.id,
+    source,
+  });
+
+  return {
+    requestId: requestRef.id,
+    historyId: historyRef.id,
+    feeAmount: amounts.feeAmount,
+    netAmount: amounts.netAmount,
+    firstWishFree: amounts.firstWishFree,
+  };
+}
+
+async function createCashOutRequest({
+  email,
+  method,
+  amount,
+  note = '',
+  contactPhone = '',
+  preferredLocation = '',
+  walletAddress = '',
+}) {
+  const userRef = db.collection('user').doc(email);
+  const requestRef = db.collection('wallet_requests').doc();
+  const historyRef = db.collection('history').doc();
+  let result = null;
+
+  await db.runTransaction(async (tx) => {
+    const userSnap = await tx.get(userRef);
+    if (!userSnap.exists) {
+      throw new Error('User profile not found.');
+    }
+    const userData = userSnap.data() || {};
+    if (userData.IsBlocked === true) {
+      throw new Error('Your account is blocked.');
+    }
+
+    const balance = Number(userData.Balance || 0);
+    const heldBalance = Number(userData.HeldBalance || 0);
+    const requestedAmount = toMoney(amount);
+    if (balance < requestedAmount) {
+      throw new Error('Insufficient balance');
+    }
+
+    const walletId = (userData.WalletId || '').toString();
+    const fullName = (userData['Full Name'] || email).toString();
+    const country = (userData.Country || '').toString();
+
+    tx.update(userRef, {
+      Balance: toMoney(balance - requestedAmount),
+      HeldBalance: toMoney(heldBalance + requestedAmount),
+    });
+
+    tx.set(requestRef, {
+      requestId: requestRef.id,
+      kind: 'cash_out',
+      method,
+      status: 'pending',
+      email,
+      walletId,
+      fullName,
+      country,
+      requestedAmount,
+      feePercent: 0,
+      feeFixed: 0,
+      feeAmount: 0,
+      netAmount: requestedAmount,
+      contactPhone: contactPhone.trim(),
+      preferredLocation: preferredLocation.trim(),
+      walletAddress: walletAddress.trim(),
+      note: note.trim(),
+      historyId: historyRef.id,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    tx.set(historyRef, {
+      Sender: fullName,
+      Receiver: `${method} Cash Out`,
+      'Receiver Email': `${method}_cashout@system`,
+      'Sender Email': email,
+      'Sender Wallet ID': walletId,
+      'Receiver Wallet ID': method.toUpperCase(),
+      type: 'pending',
+      method,
+      status: 'pending',
+      Time: admin.firestore.FieldValue.serverTimestamp(),
+      amount: 0,
+      requestedAmount,
+      feeAmount: 0,
+      netAmount: requestedAmount,
+      reference: requestRef.id,
+    });
+
+    result = {
+      requestId: requestRef.id,
+      netAmount: requestedAmount,
+    };
+  });
+
+  return result;
+}
+
+async function fetchUserHistory(email, limit = 120) {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 120, 300));
+  const [sentSnap, receivedSnap] = await Promise.all([
+    db
+      .collection('history')
+      .where('Sender Email', '==', email)
+      .orderBy('Time', 'desc')
+      .limit(safeLimit)
+      .get(),
+    db
+      .collection('history')
+      .where('Receiver Email', '==', email)
+      .orderBy('Time', 'desc')
+      .limit(safeLimit)
+      .get(),
+  ]);
+
+  const merged = new Map();
+  for (const doc of [...sentSnap.docs, ...receivedSnap.docs]) {
+    merged.set(doc.id, {
+      id: doc.id,
+      ...serializeForResponse(doc.data()),
+    });
+  }
+
+  return Array.from(merged.values())
+    .sort((a, b) => Number(b.Time || 0) - Number(a.Time || 0))
+    .slice(0, safeLimit);
+}
+
+async function buildAdminDashboardData() {
+  const [usersSnap, requestsSnap, historySnap] = await Promise.all([
+    db.collection('user').get(),
+    db.collection('wallet_requests').orderBy('createdAt', 'desc').limit(300).get(),
+    db.collection('history').orderBy('Time', 'desc').limit(150).get(),
+  ]);
+
+  const users = usersSnap.docs.map((doc) => ({
+    id: doc.id,
+    ...serializeForResponse(doc.data()),
+  }));
+  const requests = requestsSnap.docs.map((doc) => ({
+    id: doc.id,
+    ...serializeForResponse(doc.data()),
+  }));
+  const history = historySnap.docs.map((doc) => ({
+    id: doc.id,
+    ...serializeForResponse(doc.data()),
+  }));
+
+  const walletLiability = users.reduce(
+    (sum, user) => sum + Number(user.Balance || 0) + Number(user.HeldBalance || 0),
+    0,
+  );
+  const availableWalletBalance = users.reduce(
+    (sum, user) => sum + Number(user.Balance || 0),
+    0,
+  );
+  const heldWalletBalance = users.reduce(
+    (sum, user) => sum + Number(user.HeldBalance || 0),
+    0,
+  );
+  const pendingAddMoney = requests
+    .filter((item) => item.status === 'pending' && item.kind === 'add_money')
+    .reduce((sum, item) => sum + Number(item.netAmount || 0), 0);
+  const pendingCashOut = requests
+    .filter((item) => item.status === 'pending' && item.kind === 'cash_out')
+    .reduce((sum, item) => sum + Number(item.requestedAmount || 0), 0);
+  const confirmedFees = requests
+    .filter((item) => item.status === 'confirmed')
+    .reduce((sum, item) => sum + Number(item.feeAmount || 0), 0);
+  const activeUsers = users.filter((user) => user.IsBlocked !== true).length;
+  const blockedUsers = users.length - activeUsers;
+  const countries = {};
+  for (const user of users) {
+    const country = (user.Country || 'Unknown').toString().trim();
+    countries[country] = (countries[country] || 0) + 1;
+  }
+  const countryAnalytics = Object.entries(countries)
+    .map(([country, count]) => ({ country, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  return {
+    overview: {
+      walletLiability: toMoney(walletLiability),
+      availableWalletBalance: toMoney(availableWalletBalance),
+      heldWalletBalance: toMoney(heldWalletBalance),
+      pendingAddMoney: toMoney(pendingAddMoney),
+      pendingCashOut: toMoney(pendingCashOut),
+      confirmedFees: toMoney(confirmedFees),
+      activeUsers,
+      blockedUsers,
+      countryAnalytics,
+    },
+    requests,
+    users,
+    history,
+  };
+}
+
+async function confirmWalletRequest(requestId, adminActor = 'admin') {
+  const requestRef = db.collection('wallet_requests').doc(requestId);
+
+  await db.runTransaction(async (tx) => {
+    const requestSnap = await tx.get(requestRef);
+    if (!requestSnap.exists) {
+      throw new Error('Request not found.');
+    }
+
+    const request = requestSnap.data() || {};
+    const status = (request.status || '').toString();
+    if (status === 'confirmed') {
+      return;
+    }
+    if (status === 'rejected') {
+      throw new Error('Request is already rejected.');
+    }
+
+    const email = (request.email || '').toString();
+    if (!email) {
+      throw new Error('Request email is missing.');
+    }
+
+    const userRef = db.collection('user').doc(email);
+    const userSnap = await tx.get(userRef);
+    if (!userSnap.exists) {
+      throw new Error('User not found.');
+    }
+
+    const userData = userSnap.data() || {};
+    if (userData.IsBlocked === true) {
+      throw new Error('Blocked users cannot be settled.');
+    }
+
+    const historyId = (request.historyId || '').toString();
+    const historyRef = historyId
+      ? db.collection('history').doc(historyId)
+      : db.collection('history').doc();
+    const method = (request.method || '').toString();
+    const kind = (request.kind || '').toString();
+    const requestedAmount = Number(request.requestedAmount || 0);
+    const feeAmount = Number(request.feeAmount || 0);
+    const netAmount = Number(request.netAmount || 0);
+    const balance = Number(userData.Balance || 0);
+    const heldBalance = Number(userData.HeldBalance || 0);
+
+    if (kind === 'add_money') {
+      tx.update(userRef, {
+        Balance: toMoney(balance + netAmount),
+        ...(method === 'wish'
+          ? {
+              WishAddMoneyCompletedCount:
+                Number(userData.WishAddMoneyCompletedCount || 0) + 1,
+            }
+          : {}),
+      });
+
+      tx.set(
+        historyRef,
+        {
+          type: 'topup',
+          status: 'confirmed',
+          amount: netAmount,
+          requestedAmount,
+          feeAmount,
+          netAmount,
+          approvedBy: adminActor,
+          approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+          Time: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    } else if (kind === 'cash_out') {
+      if (heldBalance < requestedAmount) {
+        throw new Error('Held balance is no longer sufficient.');
+      }
+
+      tx.update(userRef, {
+        HeldBalance: toMoney(heldBalance - requestedAmount),
+      });
+
+      tx.set(
+        historyRef,
+        {
+          type: 'cash_out',
+          status: 'confirmed',
+          amount: requestedAmount,
+          requestedAmount,
+          feeAmount: 0,
+          netAmount: requestedAmount,
+          approvedBy: adminActor,
+          approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+          Time: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    } else {
+      throw new Error('Unsupported request type.');
+    }
+
+    tx.update(requestRef, {
+      status: 'confirmed',
+      confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      approvedBy: adminActor,
+    });
+  });
+}
+
+async function rejectWalletRequest(requestId, reason = '', adminActor = 'admin') {
+  const requestRef = db.collection('wallet_requests').doc(requestId);
+
+  await db.runTransaction(async (tx) => {
+    const requestSnap = await tx.get(requestRef);
+    if (!requestSnap.exists) {
+      throw new Error('Request not found.');
+    }
+
+    const request = requestSnap.data() || {};
+    if ((request.status || '').toString() === 'rejected') {
+      return;
+    }
+    if ((request.status || '').toString() === 'confirmed') {
+      throw new Error('Confirmed requests cannot be rejected.');
+    }
+
+    const email = (request.email || '').toString();
+    const kind = (request.kind || '').toString();
+    const requestedAmount = Number(request.requestedAmount || 0);
+    const historyId = (request.historyId || '').toString();
+
+    if (kind === 'cash_out' && email) {
+      const userRef = db.collection('user').doc(email);
+      const userSnap = await tx.get(userRef);
+      if (!userSnap.exists) {
+        throw new Error('User not found.');
+      }
+      const userData = userSnap.data() || {};
+      const balance = Number(userData.Balance || 0);
+      const heldBalance = Number(userData.HeldBalance || 0);
+      tx.update(userRef, {
+        Balance: toMoney(balance + requestedAmount),
+        HeldBalance: toMoney(Math.max(0, heldBalance - requestedAmount)),
+      });
+    }
+
+    tx.set(
+      requestRef,
+      {
+        status: 'rejected',
+        rejectionReason: reason.trim(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+        rejectedBy: adminActor,
+      },
+      { merge: true },
+    );
+
+    if (historyId) {
+      tx.set(
+        db.collection('history').doc(historyId),
+        {
+          status: 'rejected',
+          rejectionReason: reason.trim(),
+          rejectedBy: adminActor,
+          rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+          Time: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
+  });
+}
+
+async function createPendingStripeTopupOnce({
+  sessionId,
+  email,
+  walletId,
+  grossAmount,
+  feeAmount,
+  netAmount,
+  feePercentage = topupFeePercentage,
+  feeFixed = topupFixedFee,
+}) {
+  if (
+    !sessionId ||
+    !Number.isFinite(grossAmount) ||
+    !Number.isFinite(feeAmount) ||
+    !Number.isFinite(netAmount) ||
+    grossAmount <= 0 ||
+    netAmount <= 0 ||
+    (!email && !walletId)
+  ) {
+    throw new Error('Invalid top-up payload');
+  }
+
+  const { userRef, userDocId, matchedBy } = await findUserWalletTarget({
+    email,
+    walletId,
+  });
+  const requestRef = db.collection('wallet_requests').doc(sessionId);
+  const historyRef = db.collection('history').doc(`stripe_${sessionId}`);
+  const topupRef = db.collection('topups').doc(sessionId);
+
+  let created = false;
+  let status = 'pending';
+  let requestData = null;
+
+  await db.runTransaction(async (tx) => {
+    const requestSnap = await tx.get(requestRef);
+    if (requestSnap.exists) {
+      requestData = requestSnap.data() || {};
+      status = (requestData?.status || 'pending').toString();
+      return;
+    }
+
+    const userSnap = await tx.get(userRef);
+    if (!userSnap.exists) {
+      throw new Error(`User document not found for email: ${email}`);
+    }
+
+    const userData = userSnap.data() || {};
+    const receiverEmail = (
+      userData.Email ||
+      userDocId ||
+      email ||
+      ''
+    ).toString();
+    const receiverName = (userData['Full Name'] || email).toString();
+    const receiverWalletId = (userData.WalletId || '').toString();
+    const country = (userData.Country || '').toString();
+
+    tx.set(requestRef, {
+      requestId: sessionId,
+      kind: 'add_money',
+      method: 'card',
+      status: 'pending',
+      email: receiverEmail,
+      walletId: receiverWalletId,
+      fullName: receiverName,
+      country,
+      requestedAmount: grossAmount,
+      feePercent: feePercentage,
+      feeFixed,
+      feeAmount,
+      netAmount,
+      promotionApplied: '',
+      paymentReference: sessionId,
+      senderName: receiverName,
+      senderPhone: '',
+      senderWallet: '',
+      note: 'Stripe payment paid. Awaiting admin confirmation.',
+      historyId: historyRef.id,
+      stripeSessionId: sessionId,
+      source: 'stripe_checkout',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    tx.set(historyRef, {
+      Sender: 'Stripe',
+      Receiver: receiverName,
+      'Receiver Email': receiverEmail,
+      'Sender Email': 'stripe@system',
+      'Sender Wallet ID': 'STRIPE',
+      'Receiver Wallet ID': receiverWalletId,
+      receiverWalletId,
+      userDocId,
+      type: 'pending',
+      method: 'card',
+      status: 'pending',
+      Time: admin.firestore.FieldValue.serverTimestamp(),
+      amount: 0,
+      requestedAmount: grossAmount,
+      feeAmount,
+      netAmount,
+      source: 'stripe_checkout',
+      reference: sessionId,
+      stripeSessionId: sessionId,
+      userLookup: matchedBy,
+    });
+
+    tx.set(topupRef, {
+      email: receiverEmail,
+      walletId: receiverWalletId,
+      userDocId,
+      userLookup: matchedBy,
+      amount: 0,
+      grossAmount,
+      feeAmount,
+      feePercentage,
+      feeFixed,
+      source: 'stripe_checkout',
+      reference: sessionId,
+      stripeSessionId: sessionId,
+      status: 'pending_admin_confirmation',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    created = true;
+    status = 'pending';
+    requestData = {
+      requestId: sessionId,
+      email: receiverEmail,
+      walletId: receiverWalletId,
+      fullName: receiverName,
+      country,
+    };
+  });
+
+  return {
+    success: true,
+    credited: status === 'confirmed',
+    pending: status === 'pending',
+    rejected: status === 'rejected',
+    created,
+    requestId: sessionId,
+    grossAmount,
+    feeAmount,
+    netAmount,
+    userDocId,
+    userLookup: matchedBy,
+    requestData,
   };
 }
 
@@ -576,7 +1383,7 @@ app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (re
 
       if (session.payment_status === 'paid' && (email || walletId)) {
         const topup = calculateTopupAmounts(amount);
-        await creditWalletOnce({
+        await createPendingStripeTopupOnce({
           sessionId: session.id,
           email,
           walletId,
@@ -674,7 +1481,7 @@ app.post('/confirm-topup', authMiddleware, ownWalletCheck, async (req, res) => {
     }
 
     const topup = calculateTopupAmounts(amount);
-    const result = await creditWalletOnce({
+    const result = await createPendingStripeTopupOnce({
       sessionId: session.id,
       email,
       walletId,
@@ -684,6 +1491,9 @@ app.post('/confirm-topup', authMiddleware, ownWalletCheck, async (req, res) => {
     return res.json({
       success: true,
       credited: result.credited,
+      pending: result.pending,
+      rejected: result.rejected,
+      requestId: result.requestId,
       grossAmount: result.grossAmount,
       feeAmount: result.feeAmount,
       netAmount: result.netAmount,
@@ -692,7 +1502,11 @@ app.post('/confirm-topup', authMiddleware, ownWalletCheck, async (req, res) => {
       firebaseProjectId: firestoreProjectId,
       message: result.credited
         ? 'Wallet credited successfully'
-        : 'Top-up already credited',
+        : result.pending
+            ? 'Card payment received and top-up is pending admin confirmation.'
+            : result.rejected
+                ? 'Top-up request was rejected.'
+                : 'Top-up request already exists.',
     });
   } catch (err) {
     console.error('confirm-topup error:', err);

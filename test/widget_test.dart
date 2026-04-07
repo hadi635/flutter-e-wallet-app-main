@@ -16,6 +16,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Upay Wallet'), findsOneWidget);
+    expect(find.text('Infinity E-wallet'), findsOneWidget);
+    expect(find.text('No Limit NO Saving for your data'), findsOneWidget);
   });
 }

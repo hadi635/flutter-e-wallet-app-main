@@ -3,6 +3,8 @@ import 'package:ewallet/utils/web_url_state.dart';
 import 'package:ewallet/localization/app_translations.dart';
 import 'package:ewallet/services/stripe_service.dart';
 import 'package:ewallet/views/Home/home.dart';
+import 'package:ewallet/views/admin/admin_dashboard_view.dart';
+import 'package:ewallet/views/admin/admin_login_view.dart';
 import 'package:ewallet/views/activityView/activity_view.dart';
 import 'package:ewallet/views/amountView/amount_view.dart';
 import 'package:ewallet/views/authView/login_view.dart';
@@ -17,18 +19,25 @@ import 'package:ewallet/views/settingsView/settings_view.dart';
 import 'package:ewallet/views/settingsView/support_chat_view.dart';
 import 'package:ewallet/views/splash/splash_screen_view.dart';
 import 'package:ewallet/views/successView/success_view.dart';
+import 'package:ewallet/views/web/stripe_verification_landing_page.dart';
 import 'package:ewallet/views/wallet/add_money_view.dart';
 import 'package:ewallet/views/wallet/cash_out_view.dart';
 import 'package:ewallet/views/wallet/topup_view.dart';
+import 'package:ewallet/views/welcomeView/legal_pages.dart';
 import 'package:ewallet/views/welcomeView/welcome_view.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:get/get.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (kIsWeb) {
+    // Remove hash-based URLs on web so all routes are path-based.
+    usePathUrlStrategy();
+  }
 
   //Initialize Firebase
   await Firebase.initializeApp(
@@ -78,7 +87,28 @@ class MyApp extends StatelessWidget {
         getPages: [
           GetPage(
             name: AppRoutes.root,
+            // Keep original app flow on root.
             page: () => const SplashScreenView(),
+          ),
+          GetPage(
+            name: AppRoutes.about,
+            page: () => const AboutPage(),
+          ),
+          GetPage(
+            name: AppRoutes.services,
+            page: () => const ServicesPage(),
+          ),
+          GetPage(
+            name: AppRoutes.contact,
+            page: () => const ContactPage(),
+          ),
+          GetPage(
+            name: AppRoutes.privacy,
+            page: () => const PrivacyPolicyPage(),
+          ),
+          GetPage(
+            name: AppRoutes.terms,
+            page: () => const TermsPage(),
           ),
           GetPage(
             name: AppRoutes.welcome,
@@ -93,12 +123,22 @@ class MyApp extends StatelessWidget {
             page: () => const SignUpView(),
           ),
           GetPage(
+            name: AppRoutes.admin,
+            page: () => const AdminLoginView(),
+          ),
+          GetPage(
+            name: AppRoutes.adminDashboard,
+            page: () => const AdminDashboardView(),
+          ),
+          GetPage(
             name: AppRoutes.nav,
             page: () => NavView(),
           ),
           GetPage(
             name: AppRoutes.home,
-            page: () => const Home(),
+            // Dedicated Stripe verification landing page for /home on web.
+            page: () =>
+                kIsWeb ? const StripeVerificationLandingPage() : const Home(),
           ),
           GetPage(
             name: AppRoutes.wallet,
@@ -180,15 +220,15 @@ class MyApp extends StatelessWidget {
         theme: ThemeData(
             useMaterial3: true,
             scaffoldBackgroundColor: Appcolor.background,
-            appBarTheme: AppBarTheme(
+            appBarTheme: const AppBarTheme(
                 backgroundColor: Colors.transparent,
                 foregroundColor: Appcolor.darkText,
                 elevation: 0.00,
                 surfaceTintColor: Colors.transparent),
-            colorScheme: ColorScheme.dark(
+            colorScheme: const ColorScheme.dark(
                 surface: Appcolor.background, primary: Appcolor.primary),
             fontFamily: 'Segoe UI',
-            primaryTextTheme: TextTheme(
+            primaryTextTheme: const TextTheme(
               headlineSmall: TextStyle(color: Appcolor.darkText),
             )),
         builder: (context, child) {
@@ -205,9 +245,16 @@ class MyApp extends StatelessWidget {
 
 class AppRoutes {
   static const String root = '/';
+  static const String about = '/about';
+  static const String services = '/services';
+  static const String contact = '/contact';
+  static const String privacy = '/privacy';
+  static const String terms = '/terms';
   static const String welcome = '/welcome';
   static const String login = '/login';
   static const String signup = '/signup';
+  static const String admin = '/admin';
+  static const String adminDashboard = '/admin/dashboard';
   static const String nav = '/nav';
   static const String home = '/home';
   static const String wallet = '/wallet';
@@ -228,9 +275,16 @@ class AppRoutes {
 
   static const Set<String> webRoutable = {
     root,
+    about,
+    services,
+    contact,
+    privacy,
+    terms,
     welcome,
     login,
     signup,
+    admin,
+    adminDashboard,
     nav,
     home,
     wallet,

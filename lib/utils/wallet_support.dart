@@ -4,7 +4,7 @@ import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class WalletSupport {
-  static const String contactNumber = '+964 78 75 84 48 84';
+  static const String contactNumber = '+961 76 352 810';
 
   static Future<void> openSupportContactDialog({
     required String title,

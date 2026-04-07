@@ -1,5 +1,6 @@
 import 'package:ewallet/globals/custom_button.dart';
 import 'package:ewallet/globals/glass_container.dart';
+import 'package:ewallet/services/moonpay_transaction_state.dart';
 import 'package:ewallet/services/stripe_service.dart';
 import 'package:ewallet/utils/colors.dart';
 import 'package:ewallet/utils/web_url_state.dart';
@@ -19,16 +20,24 @@ class PaymentResultView extends StatefulWidget {
 class _PaymentResultViewState extends State<PaymentResultView> {
   bool _processing = false;
   bool _credited = false;
+  bool _pending = false;
   String _message = '';
+  MoonPayTransactionState _moonPayState = const MoonPayTransactionState(
+    isMoonPay: false,
+    status: '',
+    transactionId: '',
+  );
 
   @override
   void initState() {
     super.initState();
+    _moonPayState = _resolveMoonPayState();
     _confirmFromSessionIfNeeded();
   }
 
   Future<void> _confirmFromSessionIfNeeded() async {
     if (!widget.success) return;
+    if (_moonPayState.isMoonPay) return;
 
     if (!StripeService.hasBackend) {
       return;
@@ -50,16 +59,17 @@ class _PaymentResultViewState extends State<PaymentResultView> {
       final result = await StripeService().confirmTopUp(sessionId: sessionId);
       setState(() {
         _credited = result.credited;
+        _pending = result.pending;
         _message = result.message;
       });
 
-      if (result.credited ||
-          result.message.toLowerCase().contains('already credited')) {
+      if (result.credited || result.pending) {
         await StripeService.clearPendingSessionId();
       }
     } catch (e) {
       setState(() {
         _credited = false;
+        _pending = false;
         _message = e.toString().replaceFirst('Exception: ', '');
       });
     } finally {
@@ -69,18 +79,50 @@ class _PaymentResultViewState extends State<PaymentResultView> {
     }
   }
 
+  MoonPayTransactionState _resolveMoonPayState() {
+    final query = resolveWebUrlState().queryParameters;
+    final provider = (query['provider'] ?? '').trim().toLowerCase();
+    if (provider != 'moonpay') {
+      return const MoonPayTransactionState(
+        isMoonPay: false,
+        status: '',
+        transactionId: '',
+      );
+    }
+
+    return MoonPayTransactionState(
+      isMoonPay: true,
+      status: (query['transactionStatus'] ?? query['status'] ?? '')
+          .trim(),
+      transactionId: (query['transactionId'] ?? '').trim(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isMoonPay = _moonPayState.isMoonPay;
     final isSuccess = widget.success;
+    final isPending = isMoonPay
+        ? (isSuccess && _moonPayState.isPending)
+        : (isSuccess && !_credited && _pending);
     final topMessage = _processing
         ? 'please_wait'.tr
-        : (isSuccess
+        : (isMoonPay
+            ? (isPending
+                ? 'moonpay_result_pending'.tr
+                : (_moonPayState.transactionId.isNotEmpty
+                    ? 'moonpay_result_opened'
+                        .trParams({'id': _moonPayState.transactionId})
+                    : 'moonpay_opened'.tr))
+            : (isSuccess
             ? (_credited
                 ? 'wallet_credited_successfully'.tr
-                : (_message.isNotEmpty
-                    ? _message
-                    : 'payment_opened_return_confirm'.tr))
-            : 'topup_failed'.tr);
+                : (isPending
+                    ? 'stripe_card_pending_message'.tr
+                    : (_message.isNotEmpty
+                        ? _message
+                        : 'payment_opened_return_confirm'.tr)))
+            : 'topup_failed'.tr));
 
     return Scaffold(
       body: Container(
@@ -94,15 +136,21 @@ class _PaymentResultViewState extends State<PaymentResultView> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    isSuccess
-                        ? Icons.check_circle_outline_rounded
-                        : Icons.cancel_outlined,
-                    color: isSuccess ? Appcolor.accent : Colors.redAccent,
+                    isPending
+                        ? Icons.schedule_rounded
+                        : (isSuccess
+                            ? Icons.check_circle_outline_rounded
+                            : Icons.cancel_outlined),
+                    color: isPending
+                        ? Colors.amberAccent
+                        : (isSuccess ? Appcolor.accent : Colors.redAccent),
                     size: 66,
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    isSuccess ? 'topup_success'.tr : 'topup_failed'.tr,
+                    isPending
+                        ? 'topup_pending'.tr
+                        : (isSuccess ? 'topup_success'.tr : 'topup_failed'.tr),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,

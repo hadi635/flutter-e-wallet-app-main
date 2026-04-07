@@ -43,6 +43,16 @@ class _SplashScreenViewState extends State<SplashScreenView> {
         Get.offAllNamed(AppRoutes.welcome);
         return;
       }
+      final userSnap = await FirebaseFirestore.instance
+          .collection('user')
+          .doc(user!.email)
+          .get();
+      if (userSnap.data()?['IsBlocked'] == true) {
+        await FirebaseAuth.instance.signOut();
+        Get.offAllNamed(AppRoutes.welcome);
+        Get.snackbar('error'.tr, 'Your account is blocked.');
+        return;
+      }
       await _ensureWalletId();
       Get.offAllNamed(AppRoutes.nav);
     });

@@ -35,7 +35,8 @@ class FeesView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: customAppbar(context: context, title: 'fees_table'.tr, arrorw: true),
+      appBar:
+          customAppbar(context: context, title: 'fees_table'.tr, arrorw: true),
       body: Container(
         decoration: const BoxDecoration(gradient: Appcolor.appGradient),
         child: SingleChildScrollView(
@@ -82,11 +83,11 @@ class FeesView extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    _feeRow('Wish Money / TapTap Send', '3%'),
+                    _feeRow('Wish Money', '0% first payment, then 1%'),
                     const Divider(color: Appcolor.glassBorder, height: 1),
-                    _feeRow('Crypto', '3%'),
+                    _feeRow('Crypto', '2.5%'),
                     const Divider(color: Appcolor.glassBorder, height: 1),
-                    _feeRow('Credit / Visa / Mastercard / Apple Pay', '5.5% + \$0.30'),
+                    _feeRow('Credit / Visa / Mastercard', '5.5% + \$0.30'),
                   ],
                 ),
               ),
