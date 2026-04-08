@@ -694,8 +694,8 @@ function buildSignedMoonPayUrl(originalUrl) {
     .update(parsed.search)
     .digest('base64');
 
-  parsed.searchParams.append('signature', signature);
-  return parsed.toString();
+  const separator = originalUrl.includes('?') ? '&' : '?';
+  return `${originalUrl}${separator}signature=${encodeURIComponent(signature)}`;
 }
 
 function extractMoonPayTransactionPayload(payload) {
