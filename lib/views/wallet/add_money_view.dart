@@ -75,6 +75,8 @@ class _AddMoneyViewState extends State<AddMoneyView> {
   double get _amount => MoneyFormatter.parseAmount(_amountController.text);
   double get _wishFee => _wishFirstFree ? 0 : _money(_amount * 0.01);
   double get _cardFee => _money((_amount * 0.055) + 0.30);
+  double get _moonPayFee => _moonPayService.calculateFee(_amount);
+  double get _moonPayNet => _moonPayService.calculateNet(_amount);
   double _money(num value) => (value * 100).roundToDouble() / 100;
 
   String _methodLabel(String? method) {
@@ -248,6 +250,14 @@ class _AddMoneyViewState extends State<AddMoneyView> {
       return;
     }
 
+    final user = FirebaseAuth.instance.currentUser;
+    final email = user?.email;
+    final userId = user?.uid ?? '';
+    if (email == null || userId.isEmpty) {
+      Get.snackbar('auth_error'.tr, 'please_login_again'.tr);
+      return;
+    }
+
     if (_country.isEmpty) {
       Get.snackbar('topup_failed'.tr, 'moonpay_country_required'.tr);
       return;
@@ -260,7 +270,16 @@ class _AddMoneyViewState extends State<AddMoneyView> {
 
     setState(() => _busyCard = true);
     try {
-      final uri = _moonPayService.buildBuyUri(amount: _amount);
+      final walletId = await _ensureWalletId();
+      if (walletId == null || walletId.isEmpty) {
+        throw Exception('Unable to prepare wallet ID.');
+      }
+      final uri = await _moonPayService.createSignedBuyUri(
+        amount: _amount,
+        userId: userId,
+        userEmail: email,
+        walletId: walletId,
+      );
       final launched = await launchUrl(uri);
       if (!launched) {
         throw Exception('Unable to open MoonPay.');
@@ -782,13 +801,15 @@ class _AddMoneyViewState extends State<AddMoneyView> {
             'requested_amount'.tr,
             '\$${MoneyFormatter.fixed2(_amount)}',
           ),
-          if (!usingMoonPay) ...[
-            _summaryRow('fee'.tr, '\$${MoneyFormatter.fixed2(_cardFee)}'),
-            _summaryRow(
-              'wallet_credit_label'.tr,
-              '\$${MoneyFormatter.fixed2(max(0, _amount - _cardFee))}',
-            ),
-          ] else ...[
+          _summaryRow(
+            'fee'.tr,
+            '\$${MoneyFormatter.fixed2(usingMoonPay ? _moonPayFee : _cardFee)}',
+          ),
+          _summaryRow(
+            'wallet_credit_label'.tr,
+            '\$${MoneyFormatter.fixed2(usingMoonPay ? _moonPayNet : max(0, _amount - _cardFee))}',
+          ),
+          if (usingMoonPay) ...[
             _summaryRow('availability'.tr, _country.isEmpty ? '-' : _country),
             _summaryRow(
               'payment_note'.tr,

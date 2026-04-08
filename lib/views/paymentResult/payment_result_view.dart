@@ -1,6 +1,8 @@
+import 'dart:async';
+
 import 'package:ewallet/globals/custom_button.dart';
 import 'package:ewallet/globals/glass_container.dart';
-import 'package:ewallet/services/moonpay_transaction_state.dart';
+import 'package:ewallet/services/moonpay_service.dart';
 import 'package:ewallet/services/stripe_service.dart';
 import 'package:ewallet/utils/colors.dart';
 import 'package:ewallet/utils/web_url_state.dart';
@@ -18,26 +20,35 @@ class PaymentResultView extends StatefulWidget {
 }
 
 class _PaymentResultViewState extends State<PaymentResultView> {
+  final _moonPayService = MoonPayService();
+
   bool _processing = false;
   bool _credited = false;
   bool _pending = false;
+  bool _failed = false;
   String _message = '';
-  MoonPayTransactionState _moonPayState = const MoonPayTransactionState(
-    isMoonPay: false,
-    status: '',
-    transactionId: '',
-  );
+  String _moonPayTransactionId = '';
+  Timer? _moonPayPollTimer;
 
   @override
   void initState() {
     super.initState();
-    _moonPayState = _resolveMoonPayState();
     _confirmFromSessionIfNeeded();
+  }
+
+  @override
+  void dispose() {
+    _moonPayPollTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _confirmFromSessionIfNeeded() async {
     if (!widget.success) return;
-    if (_moonPayState.isMoonPay) return;
+
+    if (_isMoonPay) {
+      await _verifyMoonPay();
+      return;
+    }
 
     if (!StripeService.hasBackend) {
       return;
@@ -60,6 +71,7 @@ class _PaymentResultViewState extends State<PaymentResultView> {
       setState(() {
         _credited = result.credited;
         _pending = result.pending;
+        _failed = !result.credited && !result.pending;
         _message = result.message;
       });
 
@@ -70,6 +82,7 @@ class _PaymentResultViewState extends State<PaymentResultView> {
       setState(() {
         _credited = false;
         _pending = false;
+        _failed = true;
         _message = e.toString().replaceFirst('Exception: ', '');
       });
     } finally {
@@ -79,50 +92,88 @@ class _PaymentResultViewState extends State<PaymentResultView> {
     }
   }
 
-  MoonPayTransactionState _resolveMoonPayState() {
-    final query = resolveWebUrlState().queryParameters;
-    final provider = (query['provider'] ?? '').trim().toLowerCase();
-    if (provider != 'moonpay') {
-      return const MoonPayTransactionState(
-        isMoonPay: false,
-        status: '',
-        transactionId: '',
-      );
+  bool get _isMoonPay {
+    final provider =
+        resolveWebUrlState().queryParameters['provider']?.trim().toLowerCase() ??
+            '';
+    return provider == 'moonpay';
+  }
+
+  Future<void> _verifyMoonPay() async {
+    final transactionId =
+        resolveWebUrlState().queryParameters['transactionId']?.trim() ?? '';
+    if (transactionId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _failed = true;
+        _pending = false;
+        _credited = false;
+        _message = 'Missing MoonPay transaction id.';
+      });
+      return;
     }
 
-    return MoonPayTransactionState(
-      isMoonPay: true,
-      status: (query['transactionStatus'] ?? query['status'] ?? '')
-          .trim(),
-      transactionId: (query['transactionId'] ?? '').trim(),
-    );
+    _moonPayTransactionId = transactionId;
+    _moonPayPollTimer?.cancel();
+    await _pollMoonPayTransaction();
+  }
+
+  Future<void> _pollMoonPayTransaction() async {
+    if (_moonPayTransactionId.isEmpty || !mounted || _processing) return;
+
+    setState(() => _processing = true);
+    try {
+      final result = await _moonPayService.verifyTransaction(
+        transactionId: _moonPayTransactionId,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _credited = result.credited;
+        _pending = result.pending;
+        _failed = result.failed;
+        _message = result.message;
+      });
+
+      if (result.credited || result.failed) {
+        _moonPayPollTimer?.cancel();
+      } else if (result.pending) {
+        _moonPayPollTimer ??=
+            Timer.periodic(const Duration(seconds: 5), (_) async {
+          await _pollMoonPayTransaction();
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _credited = false;
+        _pending = false;
+        _failed = true;
+        _message = e.toString().replaceFirst('Exception: ', '');
+      });
+      _moonPayPollTimer?.cancel();
+    } finally {
+      if (mounted) {
+        setState(() => _processing = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isMoonPay = _moonPayState.isMoonPay;
-    final isSuccess = widget.success;
-    final isPending = isMoonPay
-        ? (isSuccess && _moonPayState.isPending)
-        : (isSuccess && !_credited && _pending);
+    final isPending = _pending && !_credited && !_failed;
+    final isSuccess = _credited || (widget.success && !_isMoonPay && !_failed);
     final topMessage = _processing
         ? 'please_wait'.tr
-        : (isMoonPay
-            ? (isPending
-                ? 'moonpay_result_pending'.tr
-                : (_moonPayState.transactionId.isNotEmpty
-                    ? 'moonpay_result_opened'
-                        .trParams({'id': _moonPayState.transactionId})
-                    : 'moonpay_opened'.tr))
-            : (isSuccess
-            ? (_credited
-                ? 'wallet_credited_successfully'.tr
-                : (isPending
-                    ? 'stripe_card_pending_message'.tr
-                    : (_message.isNotEmpty
-                        ? _message
-                        : 'payment_opened_return_confirm'.tr)))
-            : 'topup_failed'.tr));
+        : (_message.isNotEmpty
+            ? _message
+            : (isPending
+                ? (_isMoonPay
+                    ? 'moonpay_result_pending'.tr
+                    : 'stripe_card_pending_message'.tr)
+                : (isSuccess
+                    ? 'wallet_credited_successfully'.tr
+                    : 'topup_failed'.tr)));
 
     return Scaffold(
       body: Container(
@@ -135,17 +186,27 @@ class _PaymentResultViewState extends State<PaymentResultView> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    isPending
-                        ? Icons.schedule_rounded
-                        : (isSuccess
-                            ? Icons.check_circle_outline_rounded
-                            : Icons.cancel_outlined),
-                    color: isPending
-                        ? Colors.amberAccent
-                        : (isSuccess ? Appcolor.accent : Colors.redAccent),
-                    size: 66,
-                  ),
+                  if (_processing)
+                    const SizedBox(
+                      width: 66,
+                      height: 66,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        color: Appcolor.accent,
+                      ),
+                    )
+                  else
+                    Icon(
+                      isPending
+                          ? Icons.schedule_rounded
+                          : (isSuccess
+                              ? Icons.check_circle_outline_rounded
+                              : Icons.cancel_outlined),
+                      color: isPending
+                          ? Colors.amberAccent
+                          : (isSuccess ? Appcolor.accent : Colors.redAccent),
+                      size: 66,
+                    ),
                   const SizedBox(height: 10),
                   Text(
                     isPending
@@ -164,6 +225,17 @@ class _PaymentResultViewState extends State<PaymentResultView> {
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.white),
                   ),
+                  if (_isMoonPay && _moonPayTransactionId.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    SelectableText(
+                      'Transaction ID: $_moonPayTransactionId',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withAlpha(190),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 18),
                   CustomButton(
                     title: 'done'.tr,

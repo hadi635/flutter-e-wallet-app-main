@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import axios from 'axios';
 import cors from 'cors';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
@@ -70,6 +71,12 @@ const uploadLimiter = rateLimit({
 });
 app.use('/create-checkout-session', limiter);
 app.use('/confirm-topup', limiter);
+app.use('/moonpay/sign-url', authLimiter);
+app.use('/api/moonpay/sign-url', authLimiter);
+app.use('/moonpay/verify', authLimiter);
+app.use('/api/moonpay/verify', authLimiter);
+app.use('/moonpay/webhook', limiter);
+app.use('/api/moonpay/webhook', limiter);
 app.use('/upload-profile-image', limiter);
 app.use('/create-crypto-topup', authLimiter);
 app.use('/confirm-crypto-topup', authLimiter);
@@ -232,6 +239,14 @@ const confirmCryptoTopupSchema = Joi.object({
   depositId: Joi.string().required(),
 });
 
+const signMoonPayUrlSchema = Joi.object({
+  url: Joi.string().uri({ scheme: ['https'] }).required(),
+});
+
+const verifyMoonPaySchema = Joi.object({
+  transactionId: Joi.string().required(),
+});
+
 const initializeUserProfileSchema = Joi.object({
   fullName: Joi.string().trim().min(2).max(120).required(),
   dateOfBirth: Joi.string().trim().max(40).required(),
@@ -289,7 +304,11 @@ const jsonParser = express.json({ limit: '8mb' });
 
 // Original code (unchanged structure)
 app.use((req, res, next) => {
-  if (req.path === '/stripe-webhook') {
+  if (
+    req.path === '/stripe-webhook' ||
+    req.path === '/moonpay/webhook' ||
+    req.path === '/api/moonpay/webhook'
+  ) {
     next();
     return;
   }
@@ -388,6 +407,24 @@ const stripe = new Stripe(stripeSecretKey);
 const firestoreProjectId = firebaseProjectId;
 const solanaWalletAddress = (process.env.SOLANA_WALLET_ADDRESS || '').trim();
 const solanaRpcUrl = (process.env.SOLANA_RPC_URL || '').trim();
+const moonPayApiKey = (process.env.MOONPAY_API_KEY || '').trim();
+const moonPaySecretKey = (process.env.MOONPAY_SECRET_KEY || '').trim();
+const moonPayWebhookApiKey = (process.env.MOONPAY_WEBHOOK_API_KEY || '').trim();
+const moonPayApiBaseUrl = (
+  process.env.MOONPAY_API_BASE_URL || 'https://api.moonpay.com'
+).trim();
+const moonPayPlatformWalletAddress = (
+  process.env.MOONPAY_PLATFORM_WALLET_ADDRESS ||
+  '0x7c01Fc5c0B9655492d8D75F36BDFb036a73dc20D'
+).trim();
+const moonPayRedirectUrl = (
+  process.env.MOONPAY_REDIRECT_URL ||
+  'https://www.infinity-sharing.money/success?provider=moonpay'
+).trim();
+const moonPayClient = axios.create({
+  baseURL: moonPayApiBaseUrl,
+  timeout: 15000,
+});
 
 function toMoney(value) {
   return Math.round(Number(value) * 100) / 100;
@@ -563,6 +600,310 @@ function calculateTopupAmounts(grossAmount) {
     feeAmount,
     netAmount,
   };
+}
+
+function normalizeMoonPayStatus(status) {
+  const normalized = (status || '').toString().trim();
+  if (!normalized) return 'pending';
+  return normalized;
+}
+
+function isMoonPayCompletedStatus(status) {
+  return normalizeMoonPayStatus(status).toLowerCase() === 'completed';
+}
+
+function isMoonPayFailedStatus(status) {
+  return normalizeMoonPayStatus(status).toLowerCase() === 'failed';
+}
+
+function isMoonPayPendingStatus(status) {
+  return !isMoonPayCompletedStatus(status) && !isMoonPayFailedStatus(status);
+}
+
+function decodeMoonPayExternalTransactionId(externalTransactionId) {
+  const raw = (externalTransactionId || '').toString().trim();
+  if (!raw.startsWith('ctx_')) {
+    return {};
+  }
+
+  try {
+    const decoded = JSON.parse(fromBase64Url(raw.slice(4)));
+    if (!decoded || typeof decoded !== 'object') {
+      return {};
+    }
+    return decoded;
+  } catch (_error) {
+    return {};
+  }
+}
+
+function parseMoonPaySignatureHeader(signatureHeader) {
+  const header = (signatureHeader || '').toString().trim();
+  const values = Object.fromEntries(
+    header
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const [prefix, ...rest] = part.split('=');
+        return [prefix, rest.join('=')];
+      }),
+  );
+
+  return {
+    timestamp: (values.t || '').toString(),
+    signature: (values.s || '').toString(),
+  };
+}
+
+function verifyMoonPayWebhookSignature({ rawBody, signatureHeader }) {
+  if (!moonPayWebhookApiKey) {
+    throw new Error('Missing MOONPAY_WEBHOOK_API_KEY');
+  }
+
+  const { timestamp, signature } = parseMoonPaySignatureHeader(signatureHeader);
+  if (!timestamp || !signature) {
+    throw new Error('Missing MoonPay signature parts');
+  }
+
+  const payload = `${timestamp}.${rawBody.toString('utf8')}`;
+  const expectedSignature = crypto
+    .createHmac('sha256', moonPayWebhookApiKey)
+    .update(payload)
+    .digest('hex');
+
+  if (
+    signature.length !== expectedSignature.length ||
+    !crypto.timingSafeEqual(
+      Buffer.from(signature, 'utf8'),
+      Buffer.from(expectedSignature, 'utf8'),
+    )
+  ) {
+    throw new Error('Invalid MoonPay webhook signature');
+  }
+}
+
+function buildSignedMoonPayUrl(originalUrl) {
+  if (!moonPaySecretKey) {
+    throw new Error('Missing MOONPAY_SECRET_KEY');
+  }
+
+  const parsed = new URL(originalUrl);
+  const signature = crypto
+    .createHmac('sha256', moonPaySecretKey)
+    .update(parsed.search)
+    .digest('base64');
+
+  parsed.searchParams.append('signature', signature);
+  return parsed.toString();
+}
+
+function extractMoonPayTransactionPayload(payload) {
+  const data = payload?.data && payload.data.id ? payload.data : payload || {};
+  const context = decodeMoonPayExternalTransactionId(
+    data.externalTransactionId || '',
+  );
+  const email =
+    (context.email || data.email || payload?.email || '').toString().trim();
+  const walletId =
+    (context.walletId || data.walletId || payload?.walletId || '')
+      .toString()
+      .trim();
+  const userId =
+    (context.userId || data.externalCustomerId || payload?.externalCustomerId || '')
+      .toString()
+      .trim();
+
+  return {
+    transactionId: (data.id || '').toString().trim(),
+    externalTransactionId: (data.externalTransactionId || '')
+      .toString()
+      .trim(),
+    userId,
+    email,
+    walletId,
+    amountFiat: Number(data.baseCurrencyAmount || 0),
+    amountCrypto: Number(
+      data.quoteCurrencyAmount ?? data.cryptoAmount ?? data.currencyAmount ?? 0,
+    ),
+    status: normalizeMoonPayStatus(data.status),
+    walletAddress: (data.walletAddress || '').toString().trim(),
+    cryptoTransactionId: (data.cryptoTransactionId || '').toString().trim(),
+    failureReason: (data.failureReason || '').toString().trim(),
+    paymentMethod: (data.paymentMethod || '').toString().trim(),
+    baseCurrencyCode: (data.baseCurrency?.code || data.baseCurrencyCode || '')
+      .toString()
+      .trim(),
+    currencyCode: (data.currency?.code || data.currencyCode || '')
+      .toString()
+      .trim(),
+    createdAt: data.createdAt || null,
+    updatedAt: data.updatedAt || null,
+    rawData: data,
+  };
+}
+
+async function fetchMoonPayTransactionById(transactionId) {
+  if (!moonPayApiKey) {
+    throw new Error('Missing MOONPAY_API_KEY');
+  }
+
+  const response = await moonPayClient.get(
+    `/v1/transactions/${encodeURIComponent(transactionId)}`,
+    {
+      params: {
+        apiKey: moonPayApiKey,
+      },
+    },
+  );
+
+  return response.data;
+}
+
+async function upsertMoonPayTransaction({
+  payload,
+  source = 'api',
+  eventType = '',
+}) {
+  const transaction = extractMoonPayTransactionPayload(payload);
+  if (!transaction.transactionId) {
+    throw new Error('MoonPay transactionId is missing');
+  }
+
+  const transactionRef = db
+    .collection('moonpay_transactions')
+    .doc(transaction.transactionId);
+
+  const amounts = calculateTopupAmounts(transaction.amountFiat);
+  let existingData = null;
+  const existingSnap = await transactionRef.get();
+  if (existingSnap.exists) {
+    existingData = existingSnap.data() || {};
+  }
+
+  await transactionRef.set(
+    {
+      transactionId: transaction.transactionId,
+      userId: transaction.userId,
+      email: transaction.email,
+      walletId: transaction.walletId,
+      amount_fiat: amounts.grossAmount,
+      amount_crypto: transaction.amountCrypto,
+      status: transaction.status,
+      walletAddress: transaction.walletAddress,
+      feeAmount: amounts.feeAmount,
+      feePercent: topupFeePercentage,
+      feeFixed: topupFixedFee,
+      netAmount: amounts.netAmount,
+      externalTransactionId: transaction.externalTransactionId,
+      cryptoTransactionId: transaction.cryptoTransactionId,
+      baseCurrencyCode: transaction.baseCurrencyCode,
+      currencyCode: transaction.currencyCode,
+      paymentMethod: transaction.paymentMethod,
+      source,
+      eventType,
+      failureReason: transaction.failureReason,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      moonpayCreatedAt: transaction.createdAt,
+      moonpayUpdatedAt: transaction.updatedAt,
+      rawData: transaction.rawData,
+      createdAt:
+        existingData?.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+      credited: existingData?.credited === true,
+      creditedAmount: Number(existingData?.creditedAmount || 0),
+    },
+    { merge: true },
+  );
+
+  let credited = existingData?.credited === true;
+  if (
+    isMoonPayCompletedStatus(transaction.status) &&
+    !credited &&
+    (transaction.email || transaction.walletId)
+  ) {
+    const creditResult = await creditWalletOnce({
+      sessionId: `moonpay_${transaction.transactionId}`,
+      email: transaction.email,
+      walletId: transaction.walletId,
+      grossAmount: amounts.grossAmount,
+      feeAmount: amounts.feeAmount,
+      netAmount: amounts.netAmount,
+      feePercentage: topupFeePercentage,
+      feeFixed: topupFixedFee,
+      source: 'moonpay_buy',
+      senderLabel: 'MoonPay',
+      senderEmail: 'moonpay@system',
+      senderWalletId: 'MOONPAY',
+      meta: {
+        moonpayTransactionId: transaction.transactionId,
+        moonpayStatus: transaction.status,
+        moonpayWalletAddress: transaction.walletAddress,
+        moonpayCryptoAmount: transaction.amountCrypto,
+        moonpayCryptoTransactionId: transaction.cryptoTransactionId,
+      },
+    });
+
+    credited = creditResult.credited;
+    await transactionRef.set(
+      {
+        credited,
+        creditedAmount: creditResult.netAmount,
+        creditedAt: admin.firestore.FieldValue.serverTimestamp(),
+        userLookup: creditResult.userLookup,
+        userDocId: creditResult.userDocId,
+      },
+      { merge: true },
+    );
+  }
+
+  if (isMoonPayFailedStatus(transaction.status)) {
+    await transactionRef.set(
+      {
+        credited: false,
+        failureReason: transaction.failureReason,
+        failedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+  }
+
+  const latestSnap = await transactionRef.get();
+  const latest = latestSnap.data() || {};
+  return {
+    transactionId: transaction.transactionId,
+    status: transaction.status,
+    credited: latest.credited === true,
+    amountFiat: amounts.grossAmount,
+    feeAmount: amounts.feeAmount,
+    netAmount: amounts.netAmount,
+    email: transaction.email,
+    walletId: transaction.walletId,
+    failureReason: transaction.failureReason,
+  };
+}
+
+async function verifyMoonPayTransactionAccess({ transactionData, requesterEmail }) {
+  const requestEmail = (requesterEmail || '').toString().trim().toLowerCase();
+  const transactionEmail = (transactionData.email || '')
+    .toString()
+    .trim()
+    .toLowerCase();
+
+  if (transactionEmail && transactionEmail === requestEmail) {
+    return;
+  }
+
+  const walletId = (transactionData.walletId || '').toString().trim();
+  if (!walletId) {
+    throw new Error('Not your MoonPay transaction');
+  }
+
+  const requesterSnap = await db.collection('user').doc(requesterEmail).get();
+  const requesterWalletId =
+    (requesterSnap.data()?.WalletId || '').toString().trim();
+  if (!requesterWalletId || requesterWalletId !== walletId) {
+    throw new Error('Not your MoonPay transaction');
+  }
 }
 
 function calculateManualAddMoneyAmounts({
@@ -1398,7 +1739,180 @@ app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (re
   }
 });
 
+async function handleMoonPayWebhook(req, res) {
+  try {
+    const signatureHeader =
+      req.headers['moonpay-signature-v2'] || req.headers['moonpay-signature'];
+    verifyMoonPayWebhookSignature({
+      rawBody: req.body,
+      signatureHeader,
+    });
+
+    const payload = JSON.parse(req.body.toString('utf8'));
+    console.log('[MoonPay webhook] received', {
+      type: payload?.type || '',
+      transactionId: payload?.data?.id || '',
+      status: payload?.data?.status || '',
+    });
+
+    const result = await upsertMoonPayTransaction({
+      payload,
+      source: 'webhook',
+      eventType: (payload?.type || '').toString(),
+    });
+
+    return res.json({
+      received: true,
+      transactionId: result.transactionId,
+      status: result.status,
+      credited: result.credited,
+    });
+  } catch (err) {
+    console.error('moonpay-webhook processing error:', err);
+    return res.status(400).json({ error: err.message || 'Invalid MoonPay webhook' });
+  }
+}
+
+app.post(
+  '/moonpay/webhook',
+  express.raw({ type: 'application/json' }),
+  handleMoonPayWebhook,
+);
+app.post(
+  '/api/moonpay/webhook',
+  express.raw({ type: 'application/json' }),
+  handleMoonPayWebhook,
+);
+
 // Protected endpoints
+async function handleMoonPaySignUrl(req, res) {
+  try {
+    const { error } = signMoonPayUrlSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
+    }
+
+    if (!moonPayApiKey || !moonPaySecretKey) {
+      return res.status(500).json({ error: 'MoonPay signing is not configured' });
+    }
+
+    const url = req.body.url.toString().trim();
+    const parsed = new URL(url);
+    if (
+      parsed.hostname !== 'buy.moonpay.com' &&
+      parsed.hostname !== 'buy-sandbox.moonpay.com'
+    ) {
+      return res.status(400).json({ error: 'Invalid MoonPay host' });
+    }
+
+    if (parsed.searchParams.get('apiKey') !== moonPayApiKey) {
+      return res.status(400).json({ error: 'Invalid MoonPay apiKey' });
+    }
+
+    if (parsed.searchParams.get('walletAddress') !== moonPayPlatformWalletAddress) {
+      return res.status(400).json({ error: 'Invalid MoonPay walletAddress' });
+    }
+
+    const email = (parsed.searchParams.get('email') || '').trim().toLowerCase();
+    if (!email || email !== req.user.email.toLowerCase()) {
+      return res.status(403).json({ error: 'Not your MoonPay email' });
+    }
+
+    const requesterSnap = await db.collection('user').doc(req.user.email).get();
+    const requesterWalletId =
+      (requesterSnap.data()?.WalletId || '').toString().trim();
+    const requestedWalletId =
+      (parsed.searchParams.get('metadata[walletId]') || '').trim();
+
+    if (
+      requesterWalletId &&
+      requestedWalletId &&
+      requesterWalletId !== requestedWalletId
+    ) {
+      return res.status(403).json({ error: 'Not your MoonPay wallet' });
+    }
+
+    const signedUrl = buildSignedMoonPayUrl(url);
+    return res.json({ signedUrl });
+  } catch (err) {
+    console.error('moonpay-sign-url error:', err);
+    return res.status(500).json({ error: err.message || 'Unable to sign MoonPay URL' });
+  }
+}
+
+app.post('/moonpay/sign-url', authMiddleware, handleMoonPaySignUrl);
+app.post('/api/moonpay/sign-url', authMiddleware, handleMoonPaySignUrl);
+
+async function handleMoonPayVerify(req, res) {
+  try {
+    const { error } = verifyMoonPaySchema.validate(req.query);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
+    }
+
+    const transactionId = (req.query.transactionId || '').toString().trim();
+    let storedSnap = await db
+      .collection('moonpay_transactions')
+      .doc(transactionId)
+      .get();
+
+    let transactionData = storedSnap.data() || null;
+    try {
+      const remoteTransaction = await fetchMoonPayTransactionById(transactionId);
+      await upsertMoonPayTransaction({
+        payload: remoteTransaction,
+        source: 'verify_api',
+        eventType: 'verify',
+      });
+      storedSnap = await db.collection('moonpay_transactions').doc(transactionId).get();
+      transactionData = storedSnap.data() || null;
+    } catch (apiError) {
+      console.error('moonpay-verify remote sync error:', apiError?.response?.data || apiError);
+    }
+
+    if (!transactionData) {
+      return res.status(404).json({ error: 'MoonPay transaction not found' });
+    }
+
+    await verifyMoonPayTransactionAccess({
+      transactionData,
+      requesterEmail: req.user.email,
+    });
+
+    return res.json({
+      success: true,
+      transactionId,
+      status: normalizeMoonPayStatus(transactionData.status),
+      credited: transactionData.credited === true,
+      pending: isMoonPayPendingStatus(transactionData.status),
+      failed: isMoonPayFailedStatus(transactionData.status),
+      amountFiat: Number(transactionData.amount_fiat || 0),
+      amountCrypto: Number(transactionData.amount_crypto || 0),
+      feeAmount: Number(transactionData.feeAmount || 0),
+      netAmount: Number(transactionData.netAmount || 0),
+      walletAddress: (transactionData.walletAddress || '').toString(),
+      email: (transactionData.email || '').toString(),
+      walletId: (transactionData.walletId || '').toString(),
+      message: transactionData.credited === true
+          ? 'Wallet credited successfully'
+          : isMoonPayFailedStatus(transactionData.status)
+              ? ((transactionData.failureReason || '').toString().trim().isNotEmpty
+                  ? transactionData.failureReason
+                  : 'MoonPay transaction failed')
+              : 'Waiting for MoonPay transaction completion',
+    });
+  } catch (err) {
+    console.error('moonpay-verify error:', err);
+    if (err.message === 'Not your MoonPay transaction') {
+      return res.status(403).json({ error: err.message });
+    }
+    return res.status(500).json({ error: err.message || 'Unable to verify MoonPay transaction' });
+  }
+}
+
+app.get('/moonpay/verify', authMiddleware, handleMoonPayVerify);
+app.get('/api/moonpay/verify', authMiddleware, handleMoonPayVerify);
+
 app.post('/create-checkout-session', authMiddleware, ownWalletCheck, async (req, res) => {
   try {
     const { error } = createSessionSchema.validate(req.body);
